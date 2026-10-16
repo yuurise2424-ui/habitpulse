@@ -82,7 +82,7 @@
         button { touch-action: manipulation; }
         @keyframes sheet-up { from { transform: translateY(32px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @media (max-width: 639px) {
-            #habit-modal.flex > div, #reset-options-modal.flex > div, #app-guide-modal.flex > div, #record-modal.flex > div, #category-modal.flex > div {
+            #habit-modal.flex > div, #reset-options-modal.flex > div, #app-guide-modal.flex > div, #record-modal.flex > div, #category-modal.flex > div, #character-modal.flex > div {
                 animation: sheet-up 0.25s cubic-bezier(0.05, 0.7, 0.1, 1);
             }
             #habit-modal input, #habit-modal select, #category-modal input, #restore-json-input { font-size: 16px; }
@@ -749,6 +749,29 @@
         </div>
     </div>
 
+    <!-- ==========================================
+         MODAL 7: Character picker
+    =========================================== -->
+    <div id="character-modal" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm" onclick="if(event.target===this)closeCharacterModal()">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-[28px] rounded-b-none sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div class="sm:hidden shrink-0 mx-auto mt-2.5 mb-0.5 h-1 w-8 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+            <div class="px-6 pt-3 pb-3 sticky top-0 bg-white dark:bg-slate-900 z-10 border-b border-slate-200 dark:border-slate-800">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-base font-bold">誰に褒めてもらう？</h3>
+                    <button onclick="closeCharacterModal()" aria-label="閉じる" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">複数選ぶと、その中からランダムで登場します。あとからいつでも変更できます。</p>
+            </div>
+            <div id="character-grid" class="p-4 grid grid-cols-2 gap-2.5"></div>
+            <div class="sticky bottom-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center gap-2">
+                <button type="button" onclick="selectAllCharacters()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors">全員</button>
+                <button type="button" onclick="saveCharacters()" class="flex-1 py-2.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm transition-colors">決定</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Motivation popup (shown on each check) -->
     <div id="motivation-popup" onclick="hideMotivation()" class="fixed z-[55] left-4 right-4 sm:left-1/2 sm:right-auto sm:w-[420px] sm:-translate-x-1/2 top-[72px] opacity-0 -translate-y-3 pointer-events-none transition-all duration-300 cursor-pointer"></div>
 
@@ -882,6 +905,7 @@
             badges: {},         // { badgeId: 'YYYY-MM-DD' } unlock dates
             customCategories: [],
             reorderMode: false,
+            characters: null,       // null = not chosen yet; otherwise array of character ids (+ 'meigen')
             selectedCategory: 'all',
             activeDayIndex: getTodayIndexMondayBased(),
             chartMode: 'bar'   // 'bar' or 'line'
@@ -906,6 +930,8 @@
             syncDaySelectors();
             renderAll();
             lucide.createIcons();
+            if (state.characters === null) setTimeout(openCharacterModal, 700);
+            else scheduleGreeting();
         }
 
         // Register real Service Worker (requires https:// or localhost)
@@ -1012,6 +1038,8 @@
             state.perfect = p.perfect && typeof p.perfect === 'object' ? p.perfect : {};
             state.badges = p.badges && typeof p.badges === 'object' ? p.badges : {};
             state.customCategories = Array.isArray(p.customCategories) ? p.customCategories : [];
+            const chars = Array.isArray(p.characters) ? p.characters.filter(id => id === 'meigen' || (typeof CHARACTERS !== 'undefined' && CHARACTERS[id])) : [];
+            state.characters = chars.length ? chars : null;
             rebuildCategories();
         }
 
@@ -1034,7 +1062,8 @@
                 xp: state.xp,
                 perfect: state.perfect,
                 badges: state.badges,
-                customCategories: state.customCategories
+                customCategories: state.customCategories,
+                characters: state.characters
             };
         }
 
@@ -1703,7 +1732,7 @@
             const newBadges = now ? checkBadges() : [];
             saveState();
             renderAll();
-            notifyProgress({ now, delta, beforeLevel, newBadges, dayIdx });
+            notifyProgress({ now, delta, beforeLevel, newBadges, dayIdx, streak: now ? logStreak(habitId, date) : 0 });
         }
 
         function quickCompleteToday() {
@@ -2174,7 +2203,12 @@
             if (leveledUp) triggerCelebration(true);
             else if (o.now && allDone) triggerCelebration();
             o.newBadges.forEach(b => showToast(`🏅 実績解除：${b.emoji} ${b.name}`));
-            if (o.now) showMotivation();
+            if (o.now) {
+                if (leveledUp) showMotivation('levelup', { lv: afterLevel });
+                else if (allDone) showMotivation('perfect');
+                else if (o.streak && STREAK_MILESTONES.includes(o.streak)) showMotivation('streak', { n: o.streak });
+                else showMotivation('check');
+            }
         }
 
         // ---- Achievements & history modal ----
@@ -2274,10 +2308,17 @@
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${badgeHTML}</div>
                 </div>
+                <button type="button" onclick="openCharacterModal()" class="w-full flex items-center justify-between gap-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 px-4 py-3 text-left">
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold">褒めてくれる人</span>
+                        <span class="block text-xs text-slate-500 dark:text-slate-400 truncate">${escapeHTML(characterSummary())}</span>
+                    </span>
+                    <span class="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400">変更 ›</span>
+                </button>
                 <button type="button" onclick="toggleMotivation()" class="w-full flex items-center justify-between gap-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 px-4 py-3 text-left">
                     <span class="min-w-0">
                         <span class="block text-sm font-semibold">チェック時の応援メッセージ</span>
-                        <span class="block text-xs text-slate-500 dark:text-slate-400">チェックするたびに、偉人の言葉などを表示します</span>
+                        <span class="block text-xs text-slate-500 dark:text-slate-400">チェックするたびに、選んだキャラが声をかけてくれます</span>
                     </span>
                     <span class="relative shrink-0 w-11 h-6 rounded-full transition-colors ${isMotivationOn() ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'}">
                         <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${isMotivationOn() ? 'translate-x-5' : ''}"></span>
@@ -2551,36 +2592,309 @@
             renderRecord();
         }
 
-        function showMotivation() {
-            if (!isMotivationOn()) return;
+        // ---- Characters (original archetypes; praise first, light nudges when nothing is checked) ----
+        const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+        const CHARACTERS = {
+            okan: {
+                id: 'okan', name: 'お母さん', emoji: '👩', tone: 'from-rose-500 to-pink-500', tagline: '優しくて世話焼き。ちょっと心配性',
+                lines: {
+                    check: ['えらいじゃない！ ちゃんとやれたのね', 'やればできるのよ、あなたは', 'お母さん、ちょっと感動しちゃった', 'その調子その調子。無理だけはしないでね', '頑張ってるの、ちゃんと見てるからね', 'すごいじゃない！ 今日はいい夢見れそうね', 'えらいえらい。ご飯もちゃんと食べるのよ'],
+                    perfect: ['全部やったの!? お母さん、自慢の子だわ', '今日は完璧じゃない。今夜はごちそうにしようか', 'よく頑張ったわねぇ。ゆっくり休みなさい'],
+                    levelup: ['レベルが上がったの！？ Lv.{lv}、立派になって…', 'Lv.{lv}だなんて、お母さん嬉しいわ'],
+                    streak: ['{n}日も続けてるの！？ すごいじゃない', '{n}日連続…ほんと、よく続けたわね'],
+                    open: ['おはよう。今日も無理せず、ぼちぼちやりましょ', '今日もやることやったら、ゆっくりしなさいね', 'ちゃんと食べた？ 習慣も、ひとつずつでいいからね'],
+                    nudge: ['ちょっと、まだ何もやってないんじゃない？ ひとつだけでもやっちゃいなさい', '後でやる、は後でやらないのよ。ほら、ひとつだけ', 'スマホ見てるなら、そのまま1個チェックしちゃいなさい', 'お母さん、怒ってないわよ。でも、ちょっと心配'],
+                    partial: ['いい調子！ あと{left}個ね。もうひと踏ん張り', '半分は来たじゃない。あと{left}個、やっちゃいなさい'],
+                    done: ['今日はもう全部できてるじゃない。えらい！', 'やることやったわね。あとは好きに過ごしなさい']
+                }
+            },
+            obachan: {
+                id: 'obachan', name: '大阪のおばちゃん', emoji: '👩‍🦱', tone: 'from-orange-500 to-amber-500', tagline: '飴ちゃんと勢いで励ます。喝も入る',
+                lines: {
+                    check: ['あんたすごいやん！ 飴ちゃんあげるわ！', 'ええやん、ええやん！ その調子やで！', 'やるやないの〜！ 見直したわ！', 'ほんまにやったん！？ えらいわぁ〜', 'ええ子やなぁ、あんた。ほら、飴ちゃん', 'ようやったわ！ 今日の晩ご飯、おまけしといたるで', 'なんぼでもやれるやん、あんた！'],
+                    perfect: ['全部やったん！？ あんた天才ちゃう！？', '完璧やん！ 近所に自慢して回ってくるわ！', 'ほんまによう頑張った！ 今日は飴ちゃん2個や！'],
+                    levelup: ['レベル{lv}て！ あんた出世したなぁ！', 'Lv.{lv}やて！？ ちょっと誰か、うちの子すごいんやで！'],
+                    streak: ['{n}日も続いてるん！？ あんた根性あるなぁ！', '{n}日連続て、ほんまにえらいわ！'],
+                    open: ['おはようさん！ 今日もボチボチいこか〜', '今日もがんばりや〜。ほら、飴ちゃん置いとくで', 'まいど！ ほな今日もひとつずつやっていこか'],
+                    nudge: ['ちょっとあんた！ まだ何もやってへんやないの！', 'アプリ開いて見てるだけかいな！ ほれ、ひとつチェックしぃ！', '後でやる言うてた子は、だいたいやらへんのやで！ 今やり！', '飴ちゃんはやることやってからや！ ほら、はよ！'],
+                    partial: ['ええ調子やん！ あと{left}個やで、気張りや！', '半分いったなぁ！ 残り{left}個、ちゃちゃっとやってしまい！'],
+                    done: ['今日はもう全部やったん！ 立派やなぁ', 'やることやったんやから、ゆっくりしとき']
+                }
+            },
+            coach: {
+                id: 'coach', name: '熱血コーチ', emoji: '🔥', tone: 'from-red-600 to-orange-500', tagline: '全力で褒めて、全力で喝を入れる',
+                lines: {
+                    check: ['いいぞ！！ その調子だ！！', 'ナイスガッツ！ 昨日の自分を超えたな！', 'やればできる！ いや、お前ならできると思ってた！', 'その一歩が明日の勝利を作るんだ！', 'よーし、いい顔してるぞ！ 次いくぞ次！', '積み重ねだ！ 今日もよくやった！', '燃えてきたな！ 最高だ！'],
+                    perfect: ['全部やりきったな！！ 今日のMVPはお前だ！', 'パーフェクトだ！ 俺は感動した！', '完全燃焼！ 今日は胸を張って帰れ！'],
+                    levelup: ['レベル{lv}だ！ 成長が止まらないな！', 'Lv.{lv}到達！ 見違えたぞ！'],
+                    streak: ['{n}日連続！ 継続は力なり、その通りだ！', '{n}日も続けるとは…やるな！'],
+                    open: ['おう、来たな！ 今日も1つずつ積み上げていくぞ！', 'いい顔だ！ まずは1つ決めよう！', '今日もやるぞ！ 準備はいいか！'],
+                    nudge: ['どうした！ まだ1つもチェックが入ってないぞ！', '見てるだけじゃ勝てないぞ！ まず1つ動け！', '言い訳する時間があったら、1つやれ！ 今すぐだ！', 'やる気が出るのを待つな！ 動いたら出る！'],
+                    partial: ['いいペースだ！ 残り{left}個、ラストスパートだ！', 'あと{left}個！ ここからが勝負だぞ！'],
+                    done: ['今日の練習メニュー、完全クリアだな！ いい仕事だ！', 'やりきったな。しっかり休むのも練習だぞ']
+                }
+            },
+            caster: {
+                id: 'caster', name: '実況アナウンサー', emoji: '🎙️', tone: 'from-sky-600 to-indigo-600', tagline: '何をやっても大盛り上がりで実況',
+                lines: {
+                    check: ['決まったぁぁぁ！ 今日もチェックが入りましたぁ！', '素晴らしい！ 実に素晴らしい動きです！', 'おっと、ここでチェック！ 流れが来ています！', '見事な一手！ 解説の方、いかがですか！', 'これは大きい！ 大きなチェックが入りました！', '安定感がありますねぇ！ さすがです！', 'さあ勢いに乗ってきました！'],
+                    perfect: ['全習慣、達成ーーっ！！ 完全試合です！', 'パーフェクトゲームの達成です！ 会場、総立ちです！', 'やりました！ 今日は歴史に残る1日になりました！'],
+                    levelup: ['レベルアップです！ Lv.{lv}へ堂々の到達！', 'ここでLv.{lv}！ 勢いが止まりません！'],
+                    streak: ['{n}日連続！ 記録が伸びていきます！', '止まらない！ 連続{n}日、これは強い！'],
+                    open: ['さあ、本日も試合開始の時間がやってまいりました！', '今日の舞台が整いました。注目の第一手はどうなるか！', '本日も絶好のコンディション。まずは1つ、いかがでしょうか！'],
+                    nudge: ['おっと、まだ動きがありません！ どうしたのでしょうか！', '試合は進んでいますが、チェックはまだゼロ！ ここで動きたい！', '動きません、動きません！ さあ、最初の1手を！', '時間は待ってくれません！ 今こそ最初の1手です！'],
+                    partial: ['いい流れです！ 残りは{left}つ、勝負どころです！', 'ここまで順調！ 残り{left}つを決めたい！'],
+                    done: ['本日の試合は完全勝利！ お疲れさまでした！', '全て決めきりました！ 今日はもう余裕の展開です！']
+                }
+            },
+            butler: {
+                id: 'butler', name: '執事', emoji: '🤵', tone: 'from-slate-700 to-slate-900', tagline: '恭しく、品よく褒めてくれる',
+                lines: {
+                    check: ['お見事でございます', '流石でございます。着実に進んでおられますね', '素晴らしいお働きです。感服いたしました', 'また一つ、積み重ねられましたな', 'わたくし、誇らしく存じます', 'ご立派でございます', 'その調子でございます。実に結構'],
+                    perfect: ['本日の務め、すべて完遂でございます。お疲れさまでした', '完璧でございます。わたくし、拍手を禁じえません', '見事な一日でございました。ごゆるりとお休みくださいませ'],
+                    levelup: ['レベル{lv}に到達されました。おめでとうございます', 'Lv.{lv}…ご成長、目を見張るばかりでございます'],
+                    streak: ['{n}日連続とは。感服いたしました', '{n}日も続けておられるとは、お見事でございます'],
+                    open: ['おかえりなさいませ。本日も良い一日となりますよう', '本日の習慣、ご用意してございます。ご無理のないペースで', 'お待ち申しておりました。まずは一つ、いかがでございましょう'],
+                    nudge: ['恐れながら、本日はまだ一つも進んでおられぬようで', '失礼を承知で申し上げます。そろそろ、お取りかかりを', 'お言葉ですが、本日の務めがまだ残っております', 'お時間でございます。一つだけでも、いかがでしょう'],
+                    partial: ['順調でございます。残り{left}つでございますね', 'あと{left}つ。わたくしもお供いたします'],
+                    done: ['本日の務めは、すべて完了でございます。お見事でした', 'もう十分でございます。ごゆるりとお過ごしください']
+                }
+            },
+            prince: {
+                id: 'prince', name: '王子様系イケメン', emoji: '🤴', tone: 'from-violet-500 to-fuchsia-500', tagline: '爽やかで優しい。絶対に責めない',
+                lines: {
+                    check: ['よく頑張ったね。君ならできると思ってたよ', 'すごいね。僕まで嬉しくなっちゃうな', 'うん、いい感じ。そのままの君で大丈夫だよ', '頑張ってる君、すごくいいね', 'ちゃんと続けてる。そういうところ、尊敬するよ', 'ほらね、できた。君は強いんだ', '今日も一歩前に進めたね。最高だよ'],
+                    perfect: ['全部やり遂げたんだね。本当にかっこいいよ', '完璧な一日だったね。今日は君に拍手を送らせて', 'よく頑張りました。今日はゆっくり休んで'],
+                    levelup: ['Lv.{lv}だって。どんどん素敵になるね', 'Lv.{lv}おめでとう。僕も鼻が高いよ'],
+                    streak: ['{n}日も続けてるんだね。簡単なことじゃないよ', '{n}日連続か。本当に、尊敬するよ'],
+                    open: ['おはよう。今日も君のペースで、いこうね', '来てくれたんだね。今日も一緒に頑張ろう', '今日も会えて嬉しいよ。まずは一つ、ゆっくりね'],
+                    nudge: ['今日はまだこれからかな。無理のない範囲で、一つだけ始めてみない？', 'ちょっとだけ、心配になっちゃった。一つだけでも、一緒にやろう？', '大丈夫、君ならできるよ。最初の一歩だけ踏み出そう', '待ってるよ。一つ目、そっとチェックしてみて'],
+                    partial: ['いい調子だね。あと{left}個、君なら大丈夫', '順調だよ。残り{left}個、一緒にいこう'],
+                    done: ['今日はもう全部できてるね。やっぱり君はすごいよ', 'もう十分頑張ったよ。ゆっくりしてね']
+                }
+            },
+            onee: {
+                id: 'onee', name: '大人のお姉さん', emoji: '💁‍♀️', tone: 'from-purple-600 to-rose-500', tagline: '余裕があって、ちょっと甘やかし上手',
+                lines: {
+                    check: ['ふふ、えらいね。ちゃんとできたじゃない', 'いい子ね。その調子よ', 'あら、やるじゃない。見直しちゃった', '頑張ってるところ、素敵よ', 'ちゃんと続けてるの、ほんとにえらいわ', 'ほら、できたでしょ？ 私は信じてたわよ', 'いいわね。その積み重ね、ちゃんと自分のものになるわ'],
+                    perfect: ['全部やったのね。今日は胸を張っていいわよ', '完璧じゃない。ご褒美に、今日は好きなもの食べていいわ', 'よくできました。今日はゆっくり休んでね'],
+                    levelup: ['Lv.{lv}ね。どんどん素敵になっていくわね', 'Lv.{lv}おめでとう。頑張ったご褒美、考えておくわ'],
+                    streak: ['{n}日も続けるなんて、なかなかできないわよ', '{n}日連続、すごいじゃない。見てたわよ'],
+                    open: ['おはよう。今日も無理せず、ゆっくり始めましょ', '来たわね。今日はどれからやる？', 'ふふ、今日も待ってたわよ。ひとつずつでいいからね'],
+                    nudge: ['まだ何もやってないの？ ふふ、ちょっとだけ始めてみましょ', '後回しにしてると、だんだん重くなるわよ。ひとつだけ、ね？', 'ほら、スマホ見てる暇があるなら、ひとつチェックしちゃいなさい', '私、待ってるんだけどな。ひとつ、どう？'],
+                    partial: ['いい感じじゃない。あと{left}個、やっちゃいましょ', '半分は来たわね。残り{left}個、あなたならできるわ'],
+                    done: ['今日はもう全部できたのね。さすがだわ', '頑張ったわね。今日は十分よ']
+                }
+            },
+            master: {
+                id: 'master', name: '師匠（仙人）', emoji: '🧙‍♂️', tone: 'from-emerald-700 to-teal-600', tagline: '「ほっほ」と見守る。たまに渋く喝',
+                lines: {
+                    check: ['ほっほ、よい心がけじゃ', '千里の道も一歩から…うむ、一歩進んだのう', 'うむ、よくやった。その積み重ねが力となる', '焦らず、腐らず。その調子じゃ', '見事じゃ。わしの若い頃にそっくりじゃ', '継続は力なり。お主、わかっておるのう', 'ほう…なかなかやるではないか'],
+                    perfect: ['全てやり遂げたか！ 見事じゃ、天晴れじゃ', '今日の修行、完璧じゃ。ゆっくり休むがよい', 'うむ…もう教えることはないかもしれんのう'],
+                    levelup: ['Lv.{lv}か。着実に成長しておる', 'ほっほ、Lv.{lv}とは。見事な精進じゃ'],
+                    streak: ['{n}日続けたか。心が強くなったのう', '{n}日連続…継続の力、確かに見せてもらった'],
+                    open: ['よう来たの。今日もゆるりと修行じゃ', '今日の修行を始めようかのう。まず一つ、じゃ', '焦ることはない。一つずつでよいぞ'],
+                    nudge: ['まだ一つも動いておらんのう。修行は待ってくれんぞ', 'やらぬ理由を探す間に、一つやってしまうがよい', '口を動かす前に、手を動かすのじゃ。ほれ、一つ', '怠けは心の錆じゃ。さあ、一つ磨いてみなされ'],
+                    partial: ['うむ、良い流れじゃ。残り{left}つ、気を抜くでないぞ', 'あと{left}つ。ここが踏ん張りどころじゃ'],
+                    done: ['今日の修行は終わりじゃ。よう励んだのう', '全て終えたか。ゆっくり休むのも修行のうちじゃ']
+                }
+            },
+            dog: {
+                id: 'dog', name: '愛犬', emoji: '🐶', tone: 'from-amber-600 to-orange-500', tagline: 'とにかく大喜び。しょんぼりで促す',
+                lines: {
+                    check: ['わんわん！ すごい！ すごい！', 'やったー！ 大好き！ もっかい！ もっかい！', 'しっぽが止まらないよ〜！ えらい！', 'わふっ！ 一緒にやれて嬉しいな！', 'ご主人すごい！ ぼく、ずっと見てたよ！', 'やったやった！ お散歩行きたくなっちゃう！', 'ぼく、ほめるの大好き！ えらい！'],
+                    perfect: ['ぜんぶできたの！？ すごいすごいすごい！！', '今日は大ごちそうの日だよ！ わんわんわん！', 'しっぽが取れちゃいそう！ 世界一えらい！'],
+                    levelup: ['レベルが上がった！ Lv.{lv}だよ！ わーい！', 'Lv.{lv}だー！ ぼくも一緒にうれしい！'],
+                    streak: ['{n}日も続けてる！ すごいよー！', '{n}日連続！ ぼく、ずっと待っててよかった！'],
+                    open: ['おかえりー！ 待ってたよ！', '来てくれた！ 今日もがんばろうね！', 'わふっ！ 今日も一緒にやろうよ！'],
+                    nudge: ['くぅ〜ん…まだなんにもできてないよ〜', 'ねえねえ、ひとつだけやろうよ！ 一緒に！', 'ぼく、ずっと待ってるんだけどな〜…わふ', 'ひとつでいいから！ ひとつ！ やろうよ〜！'],
+                    partial: ['いい感じ！ あと{left}個だよ！', 'もうちょっと！ 残り{left}個、がんばれー！'],
+                    done: ['ぜんぶできたね！ えらいえらい！', '今日はもうおしまい？ じゃあ一緒に休もう〜']
+                }
+            }
+        };
+        const MEIGEN = { id: 'meigen', name: '偉人の名言', emoji: '📜', tagline: '名言・ことわざ・一言' };
+
+        function allSources() { return [...Object.values(CHARACTERS), MEIGEN]; }
+        function fillVars(text, vars) {
+            return text.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] !== undefined ? vars[k] : m));
+        }
+        function characterSummary() {
+            const sel = state.characters;
+            if (!sel || !sel.length) return '未選択';
+            if (sel.length >= allSources().length) return '全員';
+            return sel.map(id => (id === 'meigen' ? MEIGEN.name : (CHARACTERS[id] || {}).name)).filter(Boolean).join('・');
+        }
+
+        let lastPopup = { kind: null, id: null, text: '' };
+        let recentLines = [];
+        function pickIndex(key, len) {
+            let idx, tries = 0;
+            do {
+                idx = Math.floor(Math.random() * len);
+                tries++;
+            } while (recentLines.includes(key + ':' + idx) && tries < 20);
+            recentLines.push(key + ':' + idx);
+            if (recentLines.length > 12) recentLines.shift();
+            return idx;
+        }
+
+        function buildPopup(id, kind, vars) {
+            if (id === 'meigen') {
+                const m = MOTIVATION_MESSAGES[pickIndex('meigen', MOTIVATION_MESSAGES.length)];
+                const avatar = m.by
+                    ? (m.by === 'ことわざ' ? '🎋' : '📜')
+                    : MOTIVATION_EMOJIS[Math.floor(Math.random() * MOTIVATION_EMOJIS.length)];
+                return { id, kind: 'check', avatar, name: m.by || '一言', text: m.t, tone: 'from-slate-700 to-slate-800' };
+            }
+            const c = CHARACTERS[id];
+            const lines = c.lines[kind];
+            return { id, kind, avatar: c.emoji, name: c.name, text: fillVars(lines[pickIndex(id + ':' + kind, lines.length)], vars), tone: c.tone };
+        }
+
+        function renderPopup(p) {
             const el = document.getElementById('motivation-popup');
             if (!el) return;
-            // avoid repeating any of the last few messages
-            let idx;
-            do {
-                idx = Math.floor(Math.random() * MOTIVATION_MESSAGES.length);
-            } while (recentMotivation.includes(idx));
-            recentMotivation.push(idx);
-            if (recentMotivation.length > 8) recentMotivation.shift();
-
-            const m = MOTIVATION_MESSAGES[idx];
-            const isQuote = !!m.by;
-            const emoji = isQuote ? (m.by === 'ことわざ' ? '🎋' : '📜') : MOTIVATION_EMOJIS[Math.floor(Math.random() * MOTIVATION_EMOJIS.length)];
-            const tone = isQuote
-                ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900'
-                : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white';
+            const nudge = p.kind === 'nudge';
+            const box = nudge
+                ? 'bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-50 ring-2 ring-amber-400'
+                : `bg-gradient-to-r ${p.tone} text-white`;
             el.innerHTML = `
-                <div class="rounded-2xl ${tone} shadow-xl shadow-slate-900/20 px-4 py-3.5 flex items-start gap-3">
-                    <span class="text-2xl leading-none select-none">${emoji}</span>
+                <div class="rounded-2xl ${box} shadow-xl shadow-slate-900/20 px-4 py-3 flex items-start gap-3">
+                    <span class="w-11 h-11 shrink-0 rounded-full ${nudge ? 'bg-amber-200/70 dark:bg-amber-900' : 'bg-white/20'} flex items-center justify-center text-2xl select-none">${p.avatar}</span>
                     <div class="min-w-0">
-                        <div class="text-sm font-bold leading-snug">${escapeHTML(m.t)}</div>
-                        ${isQuote ? `<div class="mt-1 text-xs opacity-70">— ${escapeHTML(m.by)}</div>` : ''}
+                        <div class="text-[11px] font-semibold ${nudge ? 'text-amber-700 dark:text-amber-300' : 'opacity-80'}">${nudge ? '📣 ' : ''}${escapeHTML(p.name)}</div>
+                        <div class="text-sm font-bold leading-snug">${escapeHTML(p.text)}</div>
                     </div>
                 </div>`;
+            lastPopup = { kind: p.kind, id: p.id, text: p.text };
             el.classList.remove('opacity-0', '-translate-y-3', 'pointer-events-none');
             el.classList.add('opacity-100', 'translate-y-0');
             clearTimeout(motivationTimer);
-            motivationTimer = setTimeout(hideMotivation, isQuote ? 4200 : 3000);
+            motivationTimer = setTimeout(hideMotivation, nudge ? 5000 : (p.id === 'meigen' ? 4200 : 3400));
+        }
+
+        // kind: check | perfect | levelup | streak | open | nudge | partial | done
+        function showMotivation(kind = 'check', vars = {}) {
+            if (!isMotivationOn()) return false;
+            const sel = state.characters && state.characters.length ? state.characters : ['meigen'];
+            const FALLBACK = { levelup: 'check', perfect: 'check', streak: 'check' };
+            const poolFor = k => sel.filter(id => id === 'meigen'
+                ? k === 'check'
+                : !!(CHARACTERS[id] && CHARACTERS[id].lines[k] && CHARACTERS[id].lines[k].length));
+            let k = kind;
+            let pool = poolFor(k);
+            if (!pool.length && FALLBACK[k]) { k = FALLBACK[k]; pool = poolFor(k); }
+            if (!pool.length) return false;
+            renderPopup(buildPopup(pool[Math.floor(Math.random() * pool.length)], k, vars));
+            return true;
+        }
+
+        // ---- Greeting when the app is opened / idle nudge ----
+        const GREET_KEY = 'habitpulse_last_greet';
+        let idleTimer = null;
+        function todayDoneCount() {
+            const key = fmtDate(new Date());
+            return state.habits.filter(h => isDone(key, h.id)).length;
+        }
+        function scheduleGreeting() {
+            setTimeout(greetOnOpen, 1200);
+        }
+        function greetOnOpen() {
+            if (!isMotivationOn() || state.characters === null || state.habits.length === 0) return;
+            if (document.visibilityState && document.visibilityState !== 'visible') return;
+            let last = 0;
+            try { last = Number(localStorage.getItem(GREET_KEY)) || 0; } catch (e) {}
+            if (Date.now() - last < 20 * 60 * 1000) {
+                scheduleIdleNudge();
+                return;
+            }
+            try { localStorage.setItem(GREET_KEY, String(Date.now())); } catch (e) {}
+            const total = state.habits.length;
+            const done = todayDoneCount();
+            if (done === 0) {
+                showMotivation(new Date().getHours() >= 15 ? 'nudge' : 'open');
+                scheduleIdleNudge();
+            } else if (done < total) {
+                showMotivation('partial', { left: total - done });
+            } else {
+                showMotivation('done');
+            }
+        }
+        // Opened but still nothing checked after a while -> a nudge in character
+        function scheduleIdleNudge() {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+                if (document.visibilityState !== 'visible' || !isMotivationOn() || state.characters === null) return;
+                if (state.habits.length > 0 && todayDoneCount() === 0) showMotivation('nudge');
+            }, 120000);
+        }
+
+        // ---- Character picker ----
+        let pickerSel = new Set();
+        function openCharacterModal() {
+            pickerSel = new Set(state.characters || []);
+            renderCharacterPicker();
+            const m = document.getElementById('character-modal');
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+            lucide.createIcons();
+        }
+        function hideCharacterModal() {
+            const m = document.getElementById('character-modal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        }
+        function closeCharacterModal() {
+            hideCharacterModal();
+            if (state.characters === null) {      // dismissed without choosing: keep the quotes as the default
+                state.characters = ['meigen'];
+                saveState();
+            }
+        }
+        function renderCharacterPicker() {
+            const grid = document.getElementById('character-grid');
+            if (!grid) return;
+            grid.innerHTML = allSources().map(c => {
+                const on = pickerSel.has(c.id);
+                return `
+                    <button type="button" onclick="toggleCharacter('${c.id}')" aria-pressed="${on}"
+                        class="relative text-left rounded-2xl p-3 border-2 transition-colors ${on ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40'}">
+                        <div class="flex items-center gap-2 pr-5">
+                            <span class="text-2xl leading-none">${c.emoji}</span>
+                            <span class="text-sm font-bold leading-tight">${escapeHTML(c.name)}</span>
+                        </div>
+                        <div class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">${escapeHTML(c.tagline)}</div>
+                        ${on ? '<span class="absolute top-2 right-2 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-bold">✓</span>' : ''}
+                    </button>`;
+            }).join('');
+        }
+        function toggleCharacter(id) {
+            if (pickerSel.has(id)) {
+                pickerSel.delete(id);
+            } else {
+                pickerSel.add(id);
+                renderPopup(buildPopup(id, 'check', {}));   // preview how they talk
+            }
+            renderCharacterPicker();
+        }
+        function selectAllCharacters() {
+            pickerSel = new Set(allSources().map(c => c.id));
+            renderCharacterPicker();
+        }
+        function saveCharacters() {
+            if (pickerSel.size === 0) {
+                showToast('1人以上選んでください');
+                return;
+            }
+            state.characters = allSources().map(c => c.id).filter(id => pickerSel.has(id));
+            try { localStorage.setItem(MOTIVATION_KEY, '1'); } catch (e) {}
+            saveState();
+            hideCharacterModal();
+            const rec = document.getElementById('record-modal');
+            if (rec && !rec.classList.contains('hidden')) renderRecord();
+            showToast(`褒めてくれる人: ${characterSummary()}`);
+            scheduleGreeting();
         }
 
         function hideMotivation() {
@@ -2597,6 +2911,7 @@
                 state.activeDayIndex = getTodayIndexMondayBased();
                 syncDaySelectors();
                 renderAll();
+                if (state.characters !== null) scheduleGreeting();
             }
         });
 
