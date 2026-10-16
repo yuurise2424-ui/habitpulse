@@ -1,4 +1,4 @@
-const VERSION = 'habitpulse-v1';
+const VERSION = 'habitpulse-v2';
 const CORE = ['./', './index.html', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
@@ -17,6 +17,28 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || !req.url.startsWith('http')) return;
+  // HTML pages: network-first so updates show up right away (cache is the offline fallback)
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      fetch(req).then(res => {
+        const copy = res.clone();
+        caches.open(VERSION).then(c => c.put('./index.html', copy));
+        return res;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+  // HTML pages: network-first so updates show up right away (cache is the offline fallback)
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      fetch(req).then(res => {
+        const copy = res.clone();
+        caches.open(VERSION).then(c => c.put('./index.html', copy));
+        return res;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(req, { ignoreSearch: false }).then(cached => {
       const network = fetch(req).then(res => {
