@@ -310,6 +310,7 @@
                     <div id="category-tabs" class="flex items-center space-x-1.5">
                         <!-- Dynamically rendered category pills -->
                     </div>
+                    <button id="reorder-btn" onclick="toggleReorderMode()" aria-label="並び替え" class="shrink-0"></button>
                     <button onclick="quickCompleteToday()" class="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors">
                         <i data-lucide="check-check" class="w-3.5 h-3.5"></i>
                         <span id="quick-complete-label">金曜をすべて完了</span>
@@ -317,6 +318,8 @@
                 </div>
 
                 <!-- Responsive Matrix Table -->
+                <div id="reorder-hint" class="hidden px-4 sm:px-6 py-2.5 text-xs font-medium bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-b border-indigo-100 dark:border-indigo-900/50">↑↓ で順番を入れ替えて、終わったら「完了」を押してください</div>
+
                 <div class="hidden md:block overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-[640px]">
                         <thead>
@@ -746,6 +749,9 @@
         </div>
     </div>
 
+    <!-- Motivation popup (shown on each check) -->
+    <div id="motivation-popup" onclick="hideMotivation()" class="fixed z-[55] left-4 right-4 sm:left-1/2 sm:right-auto sm:w-[420px] sm:-translate-x-1/2 top-[72px] opacity-0 -translate-y-3 pointer-events-none transition-all duration-300 cursor-pointer"></div>
+
     <!-- Toast Notification -->
     <button id="fab-add" onclick="openHabitModal()" aria-label="新しい習慣を追加" class="sm:hidden fixed bottom-5 right-4 z-40 w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-100 shadow-lg shadow-slate-900/20 flex items-center justify-center active:scale-95 transition-transform">
         <i data-lucide="plus" class="w-6 h-6"></i>
@@ -875,6 +881,7 @@
             perfect: {},        // { 'YYYY-MM-DD': true } days that granted the perfect bonus
             badges: {},         // { badgeId: 'YYYY-MM-DD' } unlock dates
             customCategories: [],
+            reorderMode: false,
             selectedCategory: 'all',
             activeDayIndex: getTodayIndexMondayBased(),
             chartMode: 'bar'   // 'bar' or 'line'
@@ -1125,6 +1132,7 @@
             syncHabitDays();
             renderWeekLabel();
             renderLevelCard();
+            renderReorderUI();
             renderCategoryTabs();
             renderMatrix();
             renderKPICards();
@@ -1215,7 +1223,7 @@
             emptyState.classList.add('hidden');
 
             // Build Body Rows
-            tbody.innerHTML = filteredHabits.map(habit => {
+            tbody.innerHTML = filteredHabits.map((habit, hIdx) => {
                 const cat = CATEGORIES[habit.category] || CATEGORIES.training;
                 const { currentStreak, completedCount } = calculateStreakInfo(habit.days, state.activeDayIndex, habit.id);
                 const targetMet = completedCount >= habit.targetDays;
@@ -1273,7 +1281,7 @@
                             </div>
                         </td>
                         <td class="py-3.5 pl-2 pr-4 sm:pr-6 text-right">
-                            <div class="inline-flex items-center justify-end gap-1">
+                            <div class="inline-flex items-center justify-end gap-1">${state.reorderMode ? moveButtonsHTML(habit.id, hIdx, filteredHabits.length, false) : `
                                 <button onclick="openHabitModal('${habit.id}')" title="編集"
                                     class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                                     <i data-lucide="pencil" class="w-4 h-4"></i>
@@ -1281,7 +1289,7 @@
                                 <button onclick="confirmDeleteHabit('${habit.id}')" title="削除"
                                     class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                </button>
+                                </button>`}
                             </div>
                         </td>
                     </tr>
@@ -1324,7 +1332,7 @@
             const box = document.getElementById('habit-cards');
             if (!box) return;
 
-            const cards = habits.map(habit => {
+            const cards = habits.map((habit, hIdx) => {
                 const cat = CATEGORIES[habit.category] || CATEGORIES.training;
                 const { currentStreak, completedCount } = calculateStreakInfo(habit.days, state.activeDayIndex, habit.id);
                 const targetMet = completedCount >= habit.targetDays;
@@ -1382,13 +1390,13 @@
                                     <div class="h-full rounded-full transition-all duration-500" style="width: ${pct}%; background-color: ${cat.barColor}"></div>
                                 </div>
                             </div>
-                            <div class="shrink-0 flex items-center">
+                            <div class="shrink-0 flex items-center">${state.reorderMode ? moveButtonsHTML(habit.id, hIdx, habits.length, true) : `
                                 <button onclick="openHabitModal('${habit.id}')" aria-label="編集" class="w-11 h-11 inline-flex items-center justify-center rounded-full text-slate-500 dark:text-slate-400 active:bg-slate-200/70 dark:active:bg-slate-700/60">
                                     <i data-lucide="pencil" class="w-4 h-4"></i>
                                 </button>
                                 <button onclick="confirmDeleteHabit('${habit.id}')" aria-label="削除" class="w-11 h-11 inline-flex items-center justify-center rounded-full text-slate-500 dark:text-slate-400 active:bg-rose-100 dark:active:bg-rose-950/50">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                </button>
+                                </button>`}
                             </div>
                         </div>
                     </div>`;
@@ -2166,6 +2174,7 @@
             if (leveledUp) triggerCelebration(true);
             else if (o.now && allDone) triggerCelebration();
             o.newBadges.forEach(b => showToast(`🏅 実績解除：${b.emoji} ${b.name}`));
+            if (o.now) showMotivation();
         }
 
         // ---- Achievements & history modal ----
@@ -2265,6 +2274,15 @@
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${badgeHTML}</div>
                 </div>
+                <button type="button" onclick="toggleMotivation()" class="w-full flex items-center justify-between gap-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 px-4 py-3 text-left">
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold">チェック時の応援メッセージ</span>
+                        <span class="block text-xs text-slate-500 dark:text-slate-400">チェックするたびに、偉人の言葉などを表示します</span>
+                    </span>
+                    <span class="relative shrink-0 w-11 h-6 rounded-full transition-colors ${isMotivationOn() ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'}">
+                        <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${isMotivationOn() ? 'translate-x-5' : ''}"></span>
+                    </span>
+                </button>
                 <p class="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
                     XP: チェック1回 +${XP_PER_CHECK} ／ 1日の全習慣を達成すると +${XP_PERFECT_BONUS} ボーナス。チェックを外すとXPも戻ります。
                 </p>`;
@@ -2425,6 +2443,152 @@
             renderAll();
             renderCategoryManager();
             showToast(`カテゴリ「${c.name}」を削除しました`);
+        }
+
+        // ---- Reordering habits ----
+        function renderReorderUI() {
+            const btn = document.getElementById('reorder-btn');
+            const hint = document.getElementById('reorder-hint');
+            if (!btn) return;
+            if (state.reorderMode) {
+                btn.className = 'shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition-colors';
+                btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i><span>完了</span>';
+            } else {
+                btn.className = 'shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-2 sm:px-2.5 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors';
+                btn.innerHTML = '<i data-lucide="arrow-up-down" class="w-4 h-4"></i><span class="hidden sm:inline">並び替え</span>';
+            }
+            if (hint) hint.classList.toggle('hidden', !state.reorderMode);
+        }
+
+        function toggleReorderMode() {
+            state.reorderMode = !state.reorderMode;
+            renderAll();
+        }
+
+        function moveButtonsHTML(id, idx, len, mobile) {
+            const size = mobile ? 'w-11 h-11' : 'p-1.5';
+            const cls = `${size} inline-flex items-center justify-center rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200/70 dark:active:bg-slate-700/60 disabled:opacity-30 disabled:pointer-events-none`;
+            return `
+                <button type="button" onclick="moveHabit('${id}', -1)" ${idx === 0 ? 'disabled' : ''} aria-label="上へ" class="${cls}"><i data-lucide="chevron-up" class="w-5 h-5"></i></button>
+                <button type="button" onclick="moveHabit('${id}', 1)" ${idx === len - 1 ? 'disabled' : ''} aria-label="下へ" class="${cls}"><i data-lucide="chevron-down" class="w-5 h-5"></i></button>`;
+        }
+
+        // Moves a habit up/down among the habits currently shown (respects the category filter)
+        function moveHabit(id, dir) {
+            const visible = state.selectedCategory === 'all'
+                ? state.habits
+                : state.habits.filter(h => h.category === state.selectedCategory);
+            const i = visible.findIndex(h => h.id === id);
+            const j = i + dir;
+            if (i < 0 || j < 0 || j >= visible.length) return;
+            const a = state.habits.indexOf(visible[i]);
+            const b = state.habits.indexOf(visible[j]);
+            [state.habits[a], state.habits[b]] = [state.habits[b], state.habits[a]];
+            saveState();
+            renderAll();
+        }
+
+        // ---- Motivation pop-ups ----
+        const MOTIVATION_KEY = 'habitpulse_motivation_v1';
+        const MOTIVATION_MESSAGES = [
+            // 偉人・古典の言葉（出典が確かなものだけ）
+            { t: '千里の行も足下に始まる。', by: '老子' },
+            { t: '大事を成さんと欲せば、小さなことを怠らず勤むべし。小が積もりて大となればなり。', by: '二宮尊徳' },
+            { t: '千日の稽古を鍛とし、万日の稽古を錬とす。', by: '宮本武蔵『五輪書』' },
+            { t: '我事において後悔せず。', by: '宮本武蔵『独行道』' },
+            { t: '初心忘るべからず。', by: '世阿弥' },
+            { t: '為せば成る、為さねば成らぬ何事も、成らぬは人の為さぬなりけり。', by: '上杉鷹山' },
+            { t: '学は以て已むべからず。', by: '荀子' },
+            { t: '一歩一歩を積み重ねなければ、千里の道には至れない。', by: '荀子' },
+            { t: '学びて時にこれを習う、また説ばしからずや。', by: '孔子『論語』' },
+            { t: '過ちて改めざる、これを過ちという。', by: '孔子『論語』' },
+            { t: '困難だからやらないのではない。やらないから困難になるのだ。', by: 'セネカ' },
+            { t: 'うまく言うより、うまくやるほうがいい。', by: 'ベンジャミン・フランクリン' },
+            { t: '失われた時間は、二度と戻らない。', by: 'ベンジャミン・フランクリン' },
+            { t: '天は自ら助くる者を助く。', by: 'サミュエル・スマイルズ『自助論』' },
+            { t: 'われわれは、正しい行いをすることによって、正しい人になる。', by: 'アリストテレス' },
+            // ことわざ
+            { t: '継続は力なり。', by: 'ことわざ' },
+            { t: '塵も積もれば山となる。', by: 'ことわざ' },
+            { t: '七転び八起き。', by: 'ことわざ' },
+            { t: '石の上にも三年。', by: 'ことわざ' },
+            // 応援の一言
+            { t: 'それ、積み上がってるぞ。確実に。' },
+            { t: '今日の1チェックが、半年後の自分を作る。' },
+            { t: 'やったね。昨日の自分より、ちょっと強い。' },
+            { t: 'ナイス！ 地味なやつが最後に勝つ。' },
+            { t: '完璧じゃなくていい。やったことが全部。' },
+            { t: '+10XP。静かに、でも確実に成長中。' },
+            { t: 'その一手、ちゃんと効いてる。' },
+            { t: 'やる気は待つものじゃない。チェックして連れてくるもの。' },
+            { t: '習慣は才能に勝つ。たぶん。いや、勝つ。' },
+            { t: '今日もやった。普通にすごいからね。' },
+            { t: 'ほらね、できた。' },
+            { t: '一日休んでも、戻ってくれば勝ち。' },
+            { t: 'ログインボーナス受け取り完了。今日もいい一日。' },
+            { t: '未来の自分が、ちょっと拍手してる。' },
+            { t: 'はい、優勝。' },
+            { t: 'ちっちゃい勝利、いただきました。' },
+            { t: 'やる前の自分に教えてあげたい。「やると気持ちいいよ」って。' },
+            { t: 'いいリズム。そのまま行こう。' },
+            { t: '積み木がまた1段。崩れない土台になる。' },
+            { t: '1ミリでも前進は前進。' },
+            { t: 'サボらない自分、かっこいい。' },
+            { t: '経験値ゲット！ 次のレベルが近づいてる。' },
+            { t: '誰も見てなくても、記録は嘘をつかない。' },
+            { t: '今日の自分、ナイス判断。' }
+        ];
+        const MOTIVATION_EMOJIS = ['🔥', '💪', '✨', '🌱', '⚡', '🎯', '🚀', '👏'];
+        let motivationTimer = null;
+        let recentMotivation = [];
+
+        function isMotivationOn() {
+            try { return localStorage.getItem(MOTIVATION_KEY) !== '0'; } catch (e) { return true; }
+        }
+        function toggleMotivation() {
+            try { localStorage.setItem(MOTIVATION_KEY, isMotivationOn() ? '0' : '1'); } catch (e) {}
+            if (!isMotivationOn()) hideMotivation();
+            renderRecord();
+        }
+
+        function showMotivation() {
+            if (!isMotivationOn()) return;
+            const el = document.getElementById('motivation-popup');
+            if (!el) return;
+            // avoid repeating any of the last few messages
+            let idx;
+            do {
+                idx = Math.floor(Math.random() * MOTIVATION_MESSAGES.length);
+            } while (recentMotivation.includes(idx));
+            recentMotivation.push(idx);
+            if (recentMotivation.length > 8) recentMotivation.shift();
+
+            const m = MOTIVATION_MESSAGES[idx];
+            const isQuote = !!m.by;
+            const emoji = isQuote ? (m.by === 'ことわざ' ? '🎋' : '📜') : MOTIVATION_EMOJIS[Math.floor(Math.random() * MOTIVATION_EMOJIS.length)];
+            const tone = isQuote
+                ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900'
+                : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white';
+            el.innerHTML = `
+                <div class="rounded-2xl ${tone} shadow-xl shadow-slate-900/20 px-4 py-3.5 flex items-start gap-3">
+                    <span class="text-2xl leading-none select-none">${emoji}</span>
+                    <div class="min-w-0">
+                        <div class="text-sm font-bold leading-snug">${escapeHTML(m.t)}</div>
+                        ${isQuote ? `<div class="mt-1 text-xs opacity-70">— ${escapeHTML(m.by)}</div>` : ''}
+                    </div>
+                </div>`;
+            el.classList.remove('opacity-0', '-translate-y-3', 'pointer-events-none');
+            el.classList.add('opacity-100', 'translate-y-0');
+            clearTimeout(motivationTimer);
+            motivationTimer = setTimeout(hideMotivation, isQuote ? 4200 : 3000);
+        }
+
+        function hideMotivation() {
+            const el = document.getElementById('motivation-popup');
+            if (!el) return;
+            clearTimeout(motivationTimer);
+            el.classList.remove('opacity-100', 'translate-y-0');
+            el.classList.add('opacity-0', '-translate-y-3', 'pointer-events-none');
         }
 
         // Refresh when the app comes back to the foreground (new day / new week)
