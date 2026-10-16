@@ -82,7 +82,11 @@
         button { touch-action: manipulation; }
         @keyframes sheet-up { from { transform: translateY(32px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @media (max-width: 639px) {
-            #habit-modal.flex > div, #reset-options-modal.flex > div, #app-guide-modal.flex > div, #record-modal.flex > div, #category-modal.flex > div, #character-modal.flex > div {
+            #habit-modal.flex > div, #reset-options-modal.flex > div, #app-guide-modal.flex > div, @keyframes wiggle { 0%,100%{transform:rotate(0)} 20%{transform:rotate(-4deg)} 40%{transform:rotate(4deg)} 60%{transform:rotate(-3deg)} 80%{transform:rotate(3deg)} }
+        .chara-wiggle { animation: wiggle .6s ease-in-out 2; transform-origin: 50% 100%; }
+        @keyframes chara-pop { 0%{transform:scale(.92)} 60%{transform:scale(1.04)} 100%{transform:scale(1)} }
+        .chara-pop { animation: chara-pop .45s ease-out; transform-origin: 50% 100%; }
+        #record-modal.flex > div, #category-modal.flex > div, #character-modal.flex > div {
                 animation: sheet-up 0.25s cubic-bezier(0.05, 0.7, 0.1, 1);
             }
             #habit-modal input, #habit-modal select, #category-modal input, #restore-json-input { font-size: 16px; }
@@ -184,7 +188,10 @@
                 </div>
                 <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                     <span id="lv-sub" class="truncate">🏅 実績 0/0</span>
-                    <span class="shrink-0 font-semibold text-indigo-600 dark:text-indigo-400">実績・履歴 ›</span>
+                    <span class="shrink-0 flex items-center gap-2.5">
+                        <button type="button" onclick="event.stopPropagation();openCharacterModal()" aria-label="褒めてくれる人を変更" class="flex items-center gap-1 px-2 py-1 -my-1 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 font-semibold active:scale-95 transition-transform"><span id="lv-char" class="text-sm leading-none">🧑</span><span>キャラ変更</span></button>
+                        <span class="font-semibold text-indigo-600 dark:text-indigo-400">実績・履歴 ›</span>
+                    </span>
                 </div>
             </div>
         </section>
@@ -773,7 +780,7 @@
     </div>
 
     <!-- Motivation popup (shown on each check) -->
-    <div id="motivation-popup" onclick="hideMotivation()" class="fixed z-[55] left-4 right-4 sm:left-1/2 sm:right-auto sm:w-[420px] sm:-translate-x-1/2 top-[72px] opacity-0 -translate-y-3 pointer-events-none transition-all duration-300 cursor-pointer"></div>
+    <div id="motivation-popup" class="fixed z-[55] left-0 right-0 bottom-0 sm:left-6 sm:right-auto sm:w-[480px] pointer-events-none translate-y-full opacity-0 transition-all duration-500 ease-out" style="padding-bottom:env(safe-area-inset-bottom)"></div>
 
     <!-- Toast Notification -->
     <button id="fab-add" onclick="openHabitModal()" aria-label="新しい習慣を追加" class="sm:hidden fixed bottom-5 right-4 z-40 w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-100 shadow-lg shadow-slate-900/20 flex items-center justify-center active:scale-95 transition-transform">
@@ -2145,6 +2152,7 @@
             return '見習い';
         }
         function renderLevelCard() {
+            renderCharButton();
             const info = levelInfo(state.xp);
             const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
             set('lv-num', String(info.level));
@@ -2752,26 +2760,61 @@
             return { id, kind, avatar: c.emoji, name: c.name, text: fillVars(lines[pickIndex(id + ':' + kind, lines.length)], vars), tone: c.tone };
         }
 
+        function charFigure(p) {
+            const nudge = p.kind === 'nudge';
+            if (p.id === 'meigen') {
+                return `<div class="w-24 h-32 sm:w-28 sm:h-36 flex items-end justify-center text-[64px] leading-none select-none">${p.avatar}</div>`;
+            }
+            const src = `characters/${p.id}${nudge ? '-angry' : ''}.png`;
+            return `<div class="relative w-28 h-44 sm:w-32 sm:h-52 shrink-0 flex items-end justify-center ${nudge ? 'chara-wiggle' : 'chara-pop'}">
+                <img src="${src}" alt="${escapeHTML(p.name)}" data-id="${p.id}" data-step="${nudge ? 0 : 1}" onerror="charImgError(this)" class="max-h-full max-w-full object-contain object-bottom drop-shadow-[0_6px_8px_rgba(15,23,42,.25)]">
+                <span class="char-fallback hidden absolute inset-x-0 bottom-0 items-end justify-center text-[88px] leading-none select-none">${p.avatar}</span>
+            </div>`;
+        }
+        // angry image missing -> normal image -> emoji placeholder
+        function charImgError(img) {
+            if (img.dataset.step === '0') {
+                img.dataset.step = '1';
+                img.src = `characters/${img.dataset.id}.png`;
+                return;
+            }
+            img.style.display = 'none';
+            const fb = img.parentElement.querySelector('.char-fallback');
+            if (fb) { fb.classList.remove('hidden'); fb.classList.add('flex'); }
+        }
+
         function renderPopup(p) {
             const el = document.getElementById('motivation-popup');
             if (!el) return;
             const nudge = p.kind === 'nudge';
-            const box = nudge
-                ? 'bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-50 ring-2 ring-amber-400'
-                : `bg-gradient-to-r ${p.tone} text-white`;
+            const bubble = nudge
+                ? 'bg-amber-50 dark:bg-amber-950 text-amber-950 dark:text-amber-50 border-amber-400'
+                : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-600';
+            const tail = nudge
+                ? 'bg-amber-50 dark:bg-amber-950 border-amber-400'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600';
             el.innerHTML = `
-                <div class="rounded-2xl ${box} shadow-xl shadow-slate-900/20 px-4 py-3 flex items-start gap-3">
-                    <span class="w-11 h-11 shrink-0 rounded-full ${nudge ? 'bg-amber-200/70 dark:bg-amber-900' : 'bg-white/20'} flex items-center justify-center text-2xl select-none">${p.avatar}</span>
-                    <div class="min-w-0">
-                        <div class="text-[11px] font-semibold ${nudge ? 'text-amber-700 dark:text-amber-300' : 'opacity-80'}">${nudge ? '📣 ' : ''}${escapeHTML(p.name)}</div>
+                <div class="flex items-end gap-1 px-2 sm:px-0 pb-1">
+                    <div onclick="hideMotivation()" class="pointer-events-auto cursor-pointer shrink-0">${charFigure(p)}</div>
+                    <div onclick="hideMotivation()" class="pointer-events-auto cursor-pointer relative min-w-0 flex-1 mb-24 sm:mb-28 mr-14 sm:mr-0 rounded-2xl border-2 ${bubble} shadow-lg shadow-slate-900/15 px-3.5 py-2.5">
+                        <span class="absolute -left-[7px] bottom-5 w-3 h-3 rotate-45 border-l-2 border-b-2 ${tail}"></span>
+                        <div class="text-[11px] font-semibold ${nudge ? 'text-amber-700 dark:text-amber-300' : 'text-indigo-600 dark:text-indigo-300'}">${nudge ? '📣 ' : ''}${escapeHTML(p.name)}</div>
                         <div class="text-sm font-bold leading-snug">${escapeHTML(p.text)}</div>
                     </div>
                 </div>`;
             lastPopup = { kind: p.kind, id: p.id, text: p.text };
-            el.classList.remove('opacity-0', '-translate-y-3', 'pointer-events-none');
+            el.classList.remove('opacity-0', 'translate-y-full');
             el.classList.add('opacity-100', 'translate-y-0');
             clearTimeout(motivationTimer);
-            motivationTimer = setTimeout(hideMotivation, nudge ? 5000 : (p.id === 'meigen' ? 4200 : 3400));
+            motivationTimer = setTimeout(hideMotivation, nudge ? 5500 : (p.id === 'meigen' ? 4500 : 4000));
+        }
+
+        function renderCharButton() {
+            const el = document.getElementById('lv-char');
+            if (!el) return;
+            const sel = state.characters;
+            const first = sel && sel.length === 1 ? sel[0] : null;
+            el.textContent = first ? (first === 'meigen' ? MEIGEN.emoji : (CHARACTERS[first] || {}).emoji || '🧑') : (sel && sel.length ? '👥' : '🧑');
         }
 
         // kind: check | perfect | levelup | streak | open | nudge | partial | done
@@ -2893,6 +2936,7 @@
             hideCharacterModal();
             const rec = document.getElementById('record-modal');
             if (rec && !rec.classList.contains('hidden')) renderRecord();
+            renderCharButton();
             showToast(`褒めてくれる人: ${characterSummary()}`);
             scheduleGreeting();
         }
@@ -2902,7 +2946,7 @@
             if (!el) return;
             clearTimeout(motivationTimer);
             el.classList.remove('opacity-100', 'translate-y-0');
-            el.classList.add('opacity-0', '-translate-y-3', 'pointer-events-none');
+            el.classList.add('opacity-0', 'translate-y-full');
         }
 
         // Refresh when the app comes back to the foreground (new day / new week)

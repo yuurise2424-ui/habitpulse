@@ -1,4 +1,4 @@
-const VERSION = 'habitpulse-v3';
+const VERSION = 'habitpulse-v4';
 const CORE = ['./', './index.html', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
