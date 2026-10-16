@@ -82,10 +82,10 @@
         button { touch-action: manipulation; }
         @keyframes sheet-up { from { transform: translateY(32px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @media (max-width: 639px) {
-            #habit-modal.flex > div, #reset-options-modal.flex > div, #app-guide-modal.flex > div {
+            #habit-modal.flex > div, #reset-options-modal.flex > div, #app-guide-modal.flex > div, #record-modal.flex > div, #category-modal.flex > div {
                 animation: sheet-up 0.25s cubic-bezier(0.05, 0.7, 0.1, 1);
             }
-            #habit-modal input, #habit-modal select, #restore-json-input { font-size: 16px; }
+            #habit-modal input, #habit-modal select, #category-modal input, #restore-json-input { font-size: 16px; }
         }
     </style>
 </head>
@@ -166,6 +166,28 @@
 
     <!-- Main Content Container -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 sm:pb-6 space-y-4 sm:space-y-6">
+
+        <!-- Level / XP Card -->
+        <section id="level-card" role="button" tabindex="0" onclick="openRecordModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openRecordModal();}"
+            class="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center gap-3.5 sm:gap-4 cursor-pointer active:bg-slate-50 dark:active:bg-slate-800/60 transition-colors">
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex flex-col items-center justify-center shrink-0 shadow-md shadow-indigo-500/20">
+                <span class="text-[10px] font-semibold leading-none opacity-80 tracking-wider">LV</span>
+                <span id="lv-num" class="text-2xl font-bold leading-none mt-0.5">1</span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <div class="flex items-baseline justify-between gap-2">
+                    <span id="lv-title" class="text-sm font-bold truncate">見習い</span>
+                    <span id="lv-xp" class="text-xs text-slate-500 dark:text-slate-400 shrink-0">0 / 100 XP</span>
+                </div>
+                <div class="mt-2 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div id="lv-bar" class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+                <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span id="lv-sub" class="truncate">🏅 実績 0/0</span>
+                    <span class="shrink-0 font-semibold text-indigo-600 dark:text-indigo-400">実績・履歴 ›</span>
+                </div>
+            </div>
+        </section>
 
         <!-- KPI Summary Cards (4 Columns) -->
         <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -461,6 +483,9 @@
                         </select>
                     </div>
                 </div>
+                <div class="-mt-1">
+                    <button type="button" onclick="openCategoryModal()" class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">＋ カテゴリを追加・管理</button>
+                </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">メモ・具体的なルール（任意）</label>
                     <input type="text" id="habit-note-input" placeholder="例: 起床後すぐにプロテインと一緒に飲む" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -529,7 +554,7 @@
                     <div>
                         <div class="text-sm font-bold text-slate-800 dark:text-slate-100">今週の達成チェックだけをすべて外す（0%にする）</div>
                         <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            登録した習慣リストは残したまま、月〜日のチェック記録だけを未達成状態にクリアして新しい週を始めます。
+                            登録した習慣リストは残したまま、月〜日のチェック記録だけを未達成状態にクリアします（今週分のXPも元に戻ります）。
                         </p>
                     </div>
                 </button>
@@ -542,7 +567,7 @@
                     <div>
                         <div class="text-sm font-bold text-slate-800 dark:text-slate-100">すべての習慣を削除してゼロから始める</div>
                         <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            サンプル目標を含むすべての習慣データを消去し、真っ白な状態から自分の習慣だけを登録します。
+                            習慣リストだけを消去して、真っ白な状態から登録し直します。XP・履歴・実績は残ります。
                         </p>
                     </div>
                 </button>
@@ -556,6 +581,19 @@
                         <div class="text-sm font-bold text-slate-800 dark:text-slate-100">定番の習慣項目だけセットして0%から始める</div>
                         <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                             筋トレ・学習・読書・健康などの定番6項目を、すべて未チェック（達成率0%）の状態で読み込みます。
+                        </p>
+                    </div>
+                </button>
+
+                <!-- Option 4: Full wipe incl. history -->
+                <button onclick="confirmResetEverything()" class="w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-rose-500 dark:hover:border-rose-500 hover:bg-rose-50/40 dark:hover:bg-rose-950/30 transition-all flex items-start gap-3.5 group">
+                    <div class="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-slate-800 dark:text-slate-100">XP・履歴も含めて完全に初期化する</div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            習慣・履歴・XP・レベル・実績・追加したカテゴリをすべて消去します。元に戻せません。
                         </p>
                     </div>
                 </button>
@@ -659,6 +697,55 @@
         </div>
     </div>
 
+    <!-- ==========================================
+         MODAL 5: Achievements & History
+    =========================================== -->
+    <div id="record-modal" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm" onclick="if(event.target===this)closeRecordModal()">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-[28px] rounded-b-none sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div class="sm:hidden shrink-0 mx-auto mt-2.5 mb-0.5 h-1 w-8 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
+                <h3 class="text-base font-bold flex items-center gap-2"><i data-lucide="trophy" class="w-5 h-5 text-amber-500"></i><span>実績と履歴</span></h3>
+                <button onclick="closeRecordModal()" aria-label="閉じる" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="record-body" class="p-5 space-y-5"></div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL 6: Category manager
+    =========================================== -->
+    <div id="category-modal" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm" onclick="if(event.target===this)closeCategoryModal()">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-[28px] rounded-b-none sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div class="sm:hidden shrink-0 mx-auto mt-2.5 mb-0.5 h-1 w-8 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <h3 class="text-base font-bold">カテゴリの追加・管理</h3>
+                <button onclick="closeCategoryModal()" aria-label="閉じる" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-5">
+                <form onsubmit="addCategory(event)" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">新しいカテゴリ名</label>
+                        <input type="text" id="new-category-name" maxlength="12" placeholder="例: 姿勢・小さな習慣" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <p id="category-form-error" class="hidden text-xs text-rose-500 mt-1"></p>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">色</div>
+                        <div id="new-category-colors" class="flex items-center gap-2.5 flex-wrap"></div>
+                    </div>
+                    <button type="submit" class="w-full py-2.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm transition-colors">追加する</button>
+                </form>
+                <div>
+                    <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">追加したカテゴリ</div>
+                    <div id="custom-category-list" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <button id="fab-add" onclick="openHabitModal()" aria-label="新しい習慣を追加" class="sm:hidden fixed bottom-5 right-4 z-40 w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-100 shadow-lg shadow-slate-900/20 flex items-center justify-center active:scale-95 transition-transform">
         <i data-lucide="plus" class="w-6 h-6"></i>
@@ -670,12 +757,13 @@
         /* ========================================================
            1. CONSTANTS, CATEGORIES & INITIAL PRESET DATA
         ======================================================== */
-        const STORAGE_KEY = 'habitpulse_dashboard_v2_clean';
+        const STORAGE_KEY = 'habitpulse_dashboard_v3';
+        const LEGACY_STORAGE_KEY = 'habitpulse_dashboard_v2_clean';
         const THEME_KEY = 'habitpulse_theme_v1';
         const DAYS_JP = ['月', '火', '水', '木', '金', '土', '日'];
         const DAYS_FULL_JP = ['月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日', '日曜日'];
 
-        const CATEGORIES = {
+        const BASE_CATEGORIES = {
             all: {
                 id: 'all',
                 name: 'すべて',
@@ -716,6 +804,8 @@
                 barColor: '#f59e0b'
             }
         };
+
+        let CATEGORIES = BASE_CATEGORIES;
 
         // Clean starter habits with all days reset to false (0% completion) so the user can start tracking immediately
         const DEFAULT_HABITS = [
@@ -780,6 +870,11 @@
 
         let state = {
             habits: [],
+            log: {},            // { 'YYYY-MM-DD': [habitId, ...] } check history
+            xp: 0,
+            perfect: {},        // { 'YYYY-MM-DD': true } days that granted the perfect bonus
+            badges: {},         // { badgeId: 'YYYY-MM-DD' } unlock dates
+            customCategories: [],
             selectedCategory: 'all',
             activeDayIndex: getTodayIndexMondayBased(),
             chartMode: 'bar'   // 'bar' or 'line'
@@ -798,6 +893,9 @@
             // Clear old demo storage key so it starts fresh
             localStorage.removeItem('habitpulse_dashboard_v1');
             loadState();
+            rebuildCategories();
+            syncHabitDays();
+            if (checkBadges().length) saveState();   // silent catch-up
             syncDaySelectors();
             renderAll();
             lucide.createIcons();
@@ -857,33 +955,85 @@
         }
 
         function loadState() {
+            // "Today" is always the real day; the selector only changes the focus day afterwards
+            state.activeDayIndex = getTodayIndexMondayBased();
             try {
                 const raw = localStorage.getItem(STORAGE_KEY);
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     if (Array.isArray(parsed.habits)) {
-                        state.habits = parsed.habits;
-                        state.activeDayIndex = typeof parsed.activeDayIndex === 'number'
-                            ? parsed.activeDayIndex
-                            : getTodayIndexMondayBased();
+                        applySaved(parsed);
                         return;
                     }
                 }
             } catch (e) {
                 console.error('Failed to read localStorage:', e);
             }
-            // Start with clean unchecked habits by default
+            // Migrate from the old single-week format (kept untouched as a backup)
+            try {
+                const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+                if (legacy) {
+                    const parsed = JSON.parse(legacy);
+                    if (Array.isArray(parsed.habits)) {
+                        resetGameState();
+                        migrateLegacy(parsed);
+                        saveState();
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to migrate legacy data:', e);
+            }
+            // Fresh start
+            resetGameState();
             state.habits = JSON.parse(JSON.stringify(DEFAULT_HABITS));
-            state.activeDayIndex = getTodayIndexMondayBased();
             saveState();
+        }
+
+        function resetGameState() {
+            state.log = {};
+            state.xp = 0;
+            state.perfect = {};
+            state.badges = {};
+            state.customCategories = [];
+        }
+
+        function applySaved(p) {
+            state.habits = p.habits.map(h => ({ ...h }));
+            state.log = p.log && typeof p.log === 'object' ? p.log : {};
+            state.xp = Number(p.xp) || 0;
+            state.perfect = p.perfect && typeof p.perfect === 'object' ? p.perfect : {};
+            state.badges = p.badges && typeof p.badges === 'object' ? p.badges : {};
+            state.customCategories = Array.isArray(p.customCategories) ? p.customCategories : [];
+            rebuildCategories();
+        }
+
+        // Old format: habits carried a 7-day array for "this week". Treat it as the current week.
+        function migrateLegacy(p) {
+            state.habits = p.habits.map(h => ({ ...h }));
+            const wd = weekDates();
+            for (let i = 0; i < 7; i++) {
+                state.habits.forEach(h => {
+                    if (h.days && h.days[i]) setCheck(wd[i], h.id, true);
+                });
+            }
+        }
+
+        function exportData() {
+            return {
+                version: 3,
+                habits: state.habits.map(({ days, ...rest }) => rest),
+                log: state.log,
+                xp: state.xp,
+                perfect: state.perfect,
+                badges: state.badges,
+                customCategories: state.customCategories
+            };
         }
 
         function saveState() {
             try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                    habits: state.habits,
-                    activeDayIndex: state.activeDayIndex
-                }));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(exportData()));
             } catch (e) {
                 console.error('Failed to save state:', e);
             }
@@ -919,7 +1069,7 @@
          * - currentStreak: Consecutive checked days counting backwards from activeDayIndex (plus any consecutive days after activeDayIndex if checked).
          * - maxWeekStreak: Longest consecutive run within the 7-day week.
          */
-        function calculateStreakInfo(daysArray, activeIdx) {
+        function calculateStreakInfo(daysArray, activeIdx, habitId) {
             // 1. Current Streak anchored at activeIdx
             let currentStreak = 0;
             // If today is checked, count backwards from today; if today is not yet checked, count backwards from yesterday so the user sees their ongoing streak
@@ -954,6 +1104,12 @@
                 }
             }
 
+            if (habitId) {
+                // Streaks continue across weeks using the saved history
+                currentStreak = logStreak(habitId, weekDates()[activeIdx]);
+                maxStreak = Math.max(maxStreak, longestStreak(habitId));
+            }
+
             const completedCount = daysArray.filter(Boolean).length;
             return {
                 currentStreak,
@@ -966,6 +1122,9 @@
            5. RENDERING FUNCTIONS
         ======================================================== */
         function renderAll() {
+            syncHabitDays();
+            renderWeekLabel();
+            renderLevelCard();
             renderCategoryTabs();
             renderMatrix();
             renderKPICards();
@@ -1001,6 +1160,11 @@
                     </button>
                 `;
             }).join('');
+            container.insertAdjacentHTML('beforeend', `
+                <button onclick="openCategoryModal()" aria-label="カテゴリを追加"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap text-indigo-600 dark:text-indigo-400 border border-dashed border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors">
+                    <span>＋</span><span>カテゴリ</span>
+                </button>`);
         }
 
         function selectCategory(catId) {
@@ -1053,7 +1217,7 @@
             // Build Body Rows
             tbody.innerHTML = filteredHabits.map(habit => {
                 const cat = CATEGORIES[habit.category] || CATEGORIES.training;
-                const { currentStreak, completedCount } = calculateStreakInfo(habit.days, state.activeDayIndex);
+                const { currentStreak, completedCount } = calculateStreakInfo(habit.days, state.activeDayIndex, habit.id);
                 const targetMet = completedCount >= habit.targetDays;
 
                 const dayCells = habit.days.map((done, dIdx) => {
@@ -1162,7 +1326,7 @@
 
             const cards = habits.map(habit => {
                 const cat = CATEGORIES[habit.category] || CATEGORIES.training;
-                const { currentStreak, completedCount } = calculateStreakInfo(habit.days, state.activeDayIndex);
+                const { currentStreak, completedCount } = calculateStreakInfo(habit.days, state.activeDayIndex, habit.id);
                 const targetMet = completedCount >= habit.targetDays;
                 const pct = Math.min(100, Math.round((completedCount / habit.targetDays) * 100));
 
@@ -1279,7 +1443,7 @@
             let bestStreak = 0;
             let bestHabitName = 'なし';
             state.habits.forEach(h => {
-                const { currentStreak, maxStreak } = calculateStreakInfo(h.days, state.activeDayIndex);
+                const { currentStreak, maxStreak } = calculateStreakInfo(h.days, state.activeDayIndex, h.id);
                 const candidate = Math.max(currentStreak, maxStreak);
                 if (candidate > bestStreak) {
                     bestStreak = candidate;
@@ -1318,7 +1482,7 @@
 
             // Sort by current streak desc, then completedCount desc
             const ranked = [...state.habits].map(h => {
-                const info = calculateStreakInfo(h.days, state.activeDayIndex);
+                const info = calculateStreakInfo(h.days, state.activeDayIndex, h.id);
                 return { ...h, ...info };
             }).sort((a, b) => (b.currentStreak - a.currentStreak) || (b.completedCount - a.completedCount));
 
@@ -1353,7 +1517,7 @@
         // 5.5 Render Category Breakdown
         function renderCategoryBreakdown() {
             const container = document.getElementById('category-breakdown-list');
-            const catKeys = ['training', 'study', 'health', 'mind'];
+            const catKeys = Object.keys(CATEGORIES).filter(k => k !== 'all' && (!CATEGORIES[k].custom || state.habits.some(h => h.category === k)));
 
             container.innerHTML = catKeys.map(key => {
                 const cat = CATEGORIES[key];
@@ -1518,48 +1682,56 @@
         function toggleHabitDay(habitId, dayIdx) {
             const habit = state.habits.find(h => h.id === habitId);
             if (!habit) return;
+            if (dayIdx > getTodayIndexMondayBased()) {
+                showToast('未来の日はチェックできません');
+                return;
+            }
 
-            habit.days[dayIdx] = !habit.days[dayIdx];
+            const date = weekDates()[dayIdx];
+            const beforeLevel = levelInfo(state.xp).level;
+            const now = !isDone(date, habitId);
+            const delta = setCheck(date, habitId, now);
+            syncHabitDays();
+            const newBadges = now ? checkBadges() : [];
             saveState();
             renderAll();
-
-            // Check if all habits for that day are now 100% complete
-            const allCompletedForDay = state.habits.length > 0 && state.habits.every(h => h.days[dayIdx]);
-            if (habit.days[dayIdx] && allCompletedForDay) {
-                triggerCelebration();
-                showToast(`🎉 ${DAYS_FULL_JP[dayIdx]}の全習慣をコンプリートしました！`);
-            }
+            notifyProgress({ now, delta, beforeLevel, newBadges, dayIdx });
         }
 
         function quickCompleteToday() {
             const dIdx = state.activeDayIndex;
+            if (dIdx > getTodayIndexMondayBased()) {
+                showToast('未来の日はチェックできません');
+                return;
+            }
+            const date = weekDates()[dIdx];
             const targetHabits = state.selectedCategory === 'all'
                 ? state.habits
                 : state.habits.filter(h => h.category === state.selectedCategory);
 
             if (targetHabits.length === 0) return;
 
-            const allDone = targetHabits.every(h => h.days[dIdx]);
-            targetHabits.forEach(h => {
-                h.days[dIdx] = !allDone;
-            });
-
+            const allDone = targetHabits.every(h => isDone(date, h.id));
+            const beforeLevel = levelInfo(state.xp).level;
+            targetHabits.forEach(h => setCheck(date, h.id, !allDone));
+            syncHabitDays();
+            const newBadges = !allDone ? checkBadges() : [];
             saveState();
             renderAll();
 
             if (!allDone) {
-                triggerCelebration();
+                notifyProgress({ now: true, delta: 1, beforeLevel, newBadges, dayIdx: dIdx, bulk: true });
                 showToast(`✨ ${DAYS_FULL_JP[dIdx]}の習慣を一括完了にしました！`);
             } else {
                 showToast(`${DAYS_FULL_JP[dIdx]}のチェックを解除しました`);
             }
         }
 
-        function triggerCelebration() {
+        function triggerCelebration(big = false) {
             if (typeof confetti === 'function') {
                 confetti({
-                    particleCount: 55,
-                    spread: 60,
+                    particleCount: big ? 150 : 55,
+                    spread: big ? 100 : 60,
                     origin: { y: 0.75 }
                 });
             }
@@ -1577,6 +1749,8 @@
             const errEl = document.getElementById('habit-form-error');
 
             errEl.classList.add('hidden');
+
+            renderCategoryOptions();
 
             if (habitId) {
                 const habit = state.habits.find(h => h.id === habitId);
@@ -1684,15 +1858,36 @@
             modal.classList.remove('flex');
         }
 
-        // Reset Option 1: Keep current habits, uncheck all days (0%)
+        // Reset Option 1: Keep current habits, uncheck this week (0%) — XP for those checks is reverted too
         function clearWeeklyChecksOnly() {
-            state.habits.forEach(h => {
-                h.days = [false, false, false, false, false, false, false];
-            });
+            const wd = weekDates();
+            state.habits.forEach(h => wd.forEach(d => setCheck(d, h.id, false)));
+            syncHabitDays();
             saveState();
             closeResetOptionsModal();
             renderAll();
             showToast('今週の達成チェックをすべてリセット（0%）しました');
+        }
+
+        function confirmResetEverything() {
+            closeResetOptionsModal();
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-modal-title').textContent = '全データの初期化';
+            document.getElementById('confirm-modal-desc').textContent = '習慣・履歴・XP・レベル・実績・追加したカテゴリをすべて消去します。この操作は元に戻せません。';
+            const btn = document.getElementById('confirm-modal-action-btn');
+            btn.textContent = '初期化する';
+            btn.onclick = () => {
+                state.habits = [];
+                resetGameState();
+                state.selectedCategory = 'all';
+                rebuildCategories();
+                saveState();
+                closeConfirmModal();
+                renderAll();
+                showToast('すべてのデータを初期化しました');
+            };
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
         }
 
         // Reset Option 2: Delete all habits completely (Blank Slate)
@@ -1737,10 +1932,7 @@
         }
 
         function copyBackupJSON() {
-            const dataStr = JSON.stringify({
-                habits: state.habits,
-                activeDayIndex: state.activeDayIndex
-            });
+            const dataStr = JSON.stringify(exportData());
             const tempInput = document.createElement('textarea');
             tempInput.value = dataStr;
             document.body.appendChild(tempInput);
@@ -1764,10 +1956,18 @@
             try {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed.habits)) {
-                    state.habits = parsed.habits;
-                    if (typeof parsed.activeDayIndex === 'number') {
-                        state.activeDayIndex = parsed.activeDayIndex;
+                    if (parsed.log) {
+                        applySaved(parsed);
+                    } else {
+                        // Old backup (single week of checks)
+                        resetGameState();
+                        migrateLegacy(parsed);
                     }
+                    state.selectedCategory = 'all';
+                    rebuildCategories();
+                    state.activeDayIndex = getTodayIndexMondayBased();
+                    syncHabitDays();
+                    checkBadges();
                     saveState();
                     syncDaySelectors();
                     renderAll();
@@ -1800,6 +2000,441 @@
             URL.revokeObjectURL(url);
             showToast('💾 現在のデータを埋め込んだHTMLを保存しました！');
         }
+
+        /* ========================================================
+           7b. HISTORY, XP / LEVEL, BADGES & CUSTOM CATEGORIES
+        ======================================================== */
+        const XP_PER_CHECK = 10;
+        const XP_PERFECT_BONUS = 30;
+
+        // ---- Dates & history helpers ----
+        function fmtDate(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        function parseDate(str) {
+            const [y, m, d] = str.split('-').map(Number);
+            return new Date(y, m - 1, d);
+        }
+        function addDays(d, n) {
+            return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+        }
+        // Dates (YYYY-MM-DD) of the current Monday-to-Sunday week
+        function weekDates() {
+            const mon = addDays(new Date(), -getTodayIndexMondayBased());
+            return Array.from({ length: 7 }, (_, i) => fmtDate(addDays(mon, i)));
+        }
+        function isDone(date, id) {
+            const arr = state.log[date];
+            return !!arr && arr.includes(id);
+        }
+        // habit.days is a view of the current week derived from the saved history
+        function syncHabitDays() {
+            const wd = weekDates();
+            state.habits.forEach(h => {
+                h.days = wd.map(d => isDone(d, h.id));
+            });
+        }
+        function renderWeekLabel() {
+            const el = document.getElementById('current-week-label');
+            if (!el) return;
+            const thu = addDays(addDays(new Date(), -getTodayIndexMondayBased()), 3);
+            el.textContent = `${thu.getFullYear()}年${thu.getMonth() + 1}月 第${Math.ceil(thu.getDate() / 7)}週 (月〜日)`;
+        }
+
+        // Writes one check into the history and keeps XP in sync (symmetrical on un-check). Returns XP delta.
+        function setCheck(date, id, value) {
+            const arr = state.log[date] || [];
+            const has = arr.includes(id);
+            if (value === has) return 0;
+            let delta = 0;
+            if (value) {
+                arr.push(id);
+                state.log[date] = arr;
+                delta += XP_PER_CHECK;
+            } else {
+                arr.splice(arr.indexOf(id), 1);
+                if (arr.length === 0) delete state.log[date];
+                delta -= XP_PER_CHECK;
+            }
+            const perfect = state.habits.length > 0 && state.habits.every(h => isDone(date, h.id));
+            if (perfect && !state.perfect[date]) {
+                state.perfect[date] = true;
+                delta += XP_PERFECT_BONUS;
+            } else if (!perfect && state.perfect[date]) {
+                delete state.perfect[date];
+                delta -= XP_PERFECT_BONUS;
+            }
+            state.xp = Math.max(0, state.xp + delta);
+            return delta;
+        }
+
+        // Consecutive days up to the anchor date (or the day before when the anchor isn't done yet)
+        function logStreak(habitId, anchorDate) {
+            let d = parseDate(anchorDate);
+            if (!isDone(fmtDate(d), habitId)) d = addDays(d, -1);
+            let n = 0;
+            while (isDone(fmtDate(d), habitId) && n < 3700) {
+                n++;
+                d = addDays(d, -1);
+            }
+            return n;
+        }
+        function longestStreak(habitId) {
+            const dates = Object.keys(state.log).filter(k => state.log[k].includes(habitId)).sort();
+            let best = 0, run = 0, prev = null;
+            dates.forEach(k => {
+                run = (prev && fmtDate(addDays(parseDate(prev), 1)) === k) ? run + 1 : 1;
+                if (run > best) best = run;
+                prev = k;
+            });
+            return best;
+        }
+
+        // ---- XP / level ----
+        function xpForLevel(l) { return 50 * l * (l - 1); }   // Lv2=100, Lv3=300, Lv4=600, Lv5=1000 ...
+        function levelInfo(xp) {
+            let l = 1;
+            while (xp >= xpForLevel(l + 1)) l++;
+            const base = xpForLevel(l);
+            const need = xpForLevel(l + 1) - base;
+            return { level: l, cur: xp - base, need, pct: Math.round(((xp - base) / need) * 100) };
+        }
+        function levelTitle(l) {
+            if (l >= 30) return '伝説の継続者';
+            if (l >= 20) return '習慣マスター';
+            if (l >= 10) return 'エキスパート';
+            if (l >= 5) return '継続者';
+            if (l >= 3) return 'ルーキー';
+            return '見習い';
+        }
+        function renderLevelCard() {
+            const info = levelInfo(state.xp);
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            set('lv-num', String(info.level));
+            set('lv-title', levelTitle(info.level));
+            set('lv-xp', `${info.cur} / ${info.need} XP`);
+            set('lv-sub', `🏅 実績 ${Object.keys(state.badges).length}/${BADGES.length} ・ 合計 ${state.xp} XP`);
+            const bar = document.getElementById('lv-bar');
+            if (bar) bar.style.width = info.pct + '%';
+        }
+
+        // ---- Badges ----
+        const BADGES = [
+            { id: 'first',    emoji: '🌱', name: 'はじめの一歩',   desc: '初めてチェックする',           test: s => s.totalChecks >= 1 },
+            { id: 'streak3',  emoji: '🔥', name: '3日連続',        desc: '同じ習慣を3日連続で達成',       test: s => s.bestStreak >= 3 },
+            { id: 'streak7',  emoji: '⚡', name: '7日連続',        desc: '同じ習慣を7日連続で達成',       test: s => s.bestStreak >= 7 },
+            { id: 'streak14', emoji: '💎', name: '14日連続',       desc: '同じ習慣を14日連続で達成',      test: s => s.bestStreak >= 14 },
+            { id: 'streak30', emoji: '👑', name: '30日連続',       desc: '同じ習慣を30日連続で達成',      test: s => s.bestStreak >= 30 },
+            { id: 'perfect1', emoji: '🎯', name: 'パーフェクト',   desc: '1日で全習慣を達成',             test: s => s.perfectDays >= 1 },
+            { id: 'perfect7', emoji: '🏆', name: 'パーフェクト×7', desc: '全習慣達成の日が通算7日',       test: s => s.perfectDays >= 7 },
+            { id: 'week',     emoji: '📅', name: '週目標コンプリート', desc: '今週すべての習慣が週目標に到達', test: s => s.weekGoalsMet },
+            { id: 'checks100',emoji: '💯', name: '累計100回',      desc: 'チェックの合計が100回',         test: s => s.totalChecks >= 100 },
+            { id: 'lv5',      emoji: '⭐', name: 'Lv.5到達',       desc: 'レベル5に到達',                 test: s => s.level >= 5 },
+            { id: 'lv10',     emoji: '🚀', name: 'Lv.10到達',      desc: 'レベル10に到達',                test: s => s.level >= 10 }
+        ];
+
+        function computeStats() {
+            const totalChecks = Object.values(state.log).reduce((a, arr) => a + arr.length, 0);
+            const bestStreak = state.habits.reduce((m, h) => Math.max(m, longestStreak(h.id)), 0);
+            const perfectDays = Object.keys(state.perfect).length;
+            const weekGoalsMet = state.habits.length > 0 && state.habits.every(h => h.days.filter(Boolean).length >= h.targetDays);
+            return { totalChecks, bestStreak, perfectDays, weekGoalsMet, level: levelInfo(state.xp).level };
+        }
+
+        // Unlocks newly earned badges and returns them
+        function checkBadges() {
+            const stats = computeStats();
+            const today = fmtDate(new Date());
+            const got = [];
+            BADGES.forEach(b => {
+                if (!state.badges[b.id] && b.test(stats)) {
+                    state.badges[b.id] = today;
+                    got.push(b);
+                }
+            });
+            return got;
+        }
+
+        function notifyProgress(o) {
+            const allDone = state.habits.length > 0 && state.habits.every(h => h.days[o.dayIdx]);
+            const afterLevel = levelInfo(state.xp).level;
+            const leveledUp = afterLevel > o.beforeLevel;
+            if (o.now && allDone && !o.bulk) {
+                showToast(`🎉 ${DAYS_FULL_JP[o.dayIdx]}の全習慣をコンプリート！ +${XP_PER_CHECK + XP_PERFECT_BONUS} XP`);
+            }
+            if (leveledUp) showToast(`⬆️ Lv.${afterLevel} にレベルアップ！ ${levelTitle(afterLevel)}`);
+            if (leveledUp) triggerCelebration(true);
+            else if (o.now && allDone) triggerCelebration();
+            o.newBadges.forEach(b => showToast(`🏅 実績解除：${b.emoji} ${b.name}`));
+        }
+
+        // ---- Achievements & history modal ----
+        function openRecordModal() {
+            renderRecord();
+            const m = document.getElementById('record-modal');
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+            lucide.createIcons();
+        }
+        function closeRecordModal() {
+            const m = document.getElementById('record-modal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        }
+
+        function renderHeatmap() {
+            const weeks = 12;
+            const today = new Date();
+            const todayStr = fmtDate(today);
+            const start = addDays(addDays(today, -getTodayIndexMondayBased()), -7 * (weeks - 1));
+            const ids = new Set(state.habits.map(h => h.id));
+            const total = state.habits.length;
+            let cells = '';
+            for (let w = 0; w < weeks; w++) {
+                for (let d = 0; d < 7; d++) {
+                    const date = addDays(start, w * 7 + d);
+                    if (date > today) {
+                        cells += '<div></div>';
+                        continue;
+                    }
+                    const key = fmtDate(date);
+                    const done = (state.log[key] || []).filter(id => ids.has(id)).length;
+                    const ratio = total > 0 ? Math.min(1, done / total) : 0;
+                    const cls = done === 0 ? 'bg-slate-100 dark:bg-slate-800'
+                        : ratio < 0.5 ? 'bg-indigo-200 dark:bg-indigo-900'
+                        : ratio < 1 ? 'bg-indigo-400 dark:bg-indigo-600'
+                        : 'bg-indigo-600 dark:bg-indigo-400';
+                    const ring = key === todayStr ? 'ring-2 ring-offset-1 ring-indigo-500 dark:ring-offset-slate-900' : '';
+                    cells += `<div title="${key}  ${done}/${total}" class="aspect-square rounded-[5px] ${cls} ${ring}"></div>`;
+                }
+            }
+            return `
+                <div style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,minmax(0,1fr));grid-auto-columns:minmax(0,1fr);gap:4px">${cells}</div>
+                <div class="mt-2 flex items-center justify-end gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>少</span>
+                    <span class="w-3 h-3 rounded-[4px] bg-slate-100 dark:bg-slate-800"></span>
+                    <span class="w-3 h-3 rounded-[4px] bg-indigo-200 dark:bg-indigo-900"></span>
+                    <span class="w-3 h-3 rounded-[4px] bg-indigo-400 dark:bg-indigo-600"></span>
+                    <span class="w-3 h-3 rounded-[4px] bg-indigo-600 dark:bg-indigo-400"></span>
+                    <span>多</span>
+                </div>`;
+        }
+
+        function renderRecord() {
+            const body = document.getElementById('record-body');
+            if (!body) return;
+            const stats = computeStats();
+            const info = levelInfo(state.xp);
+            const tile = (label, value, unit) => `
+                <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 p-3 text-center">
+                    <div class="text-[11px] text-slate-500 dark:text-slate-400">${label}</div>
+                    <div class="mt-0.5 text-xl font-bold">${value}<span class="ml-0.5 text-xs font-medium text-slate-500">${unit}</span></div>
+                </div>`;
+            const badgeHTML = BADGES.map(b => {
+                const got = state.badges[b.id];
+                return `
+                    <div class="rounded-2xl p-3 text-center border ${got ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200/70 dark:border-amber-800/50' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800'}">
+                        <div class="text-2xl ${got ? '' : 'grayscale opacity-40'}">${b.emoji}</div>
+                        <div class="mt-1 text-xs font-bold ${got ? '' : 'text-slate-400 dark:text-slate-500'}">${b.name}</div>
+                        <div class="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">${b.desc}</div>
+                        ${got ? `<div class="mt-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400">${got.replace(/-/g, '/')} 解除</div>` : ''}
+                    </div>`;
+            }).join('');
+
+            body.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-lg font-bold shrink-0">${info.level}</div>
+                    <div class="min-w-0">
+                        <div class="text-sm font-bold">Lv.${info.level} ${levelTitle(info.level)}</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400">合計 ${state.xp} XP ・ 次のレベルまで ${info.need - info.cur} XP</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    ${tile('累計チェック', stats.totalChecks, '回')}
+                    ${tile('最長連続', stats.bestStreak, '日')}
+                    ${tile('パーフェクト', stats.perfectDays, '日')}
+                </div>
+                <div>
+                    <div class="text-xs font-bold mb-2">直近12週間の達成</div>
+                    ${renderHeatmap()}
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-xs font-bold">実績バッジ</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400">${Object.keys(state.badges).length} / ${BADGES.length}</div>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${badgeHTML}</div>
+                </div>
+                <p class="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                    XP: チェック1回 +${XP_PER_CHECK} ／ 1日の全習慣を達成すると +${XP_PERFECT_BONUS} ボーナス。チェックを外すとXPも戻ります。
+                </p>`;
+        }
+
+        // ---- Custom categories ----
+        const CAT_COLORS = [
+            { name: 'sky',     swatch: 'bg-sky-500',     bar: '#0ea5e9', check: 'bg-sky-500 hover:bg-sky-600 text-white border-sky-500 shadow-sm shadow-sky-500/30',             badge: 'bg-sky-50 text-sky-600 dark:bg-sky-950/70 dark:text-sky-400 border border-sky-200/60 dark:border-sky-800/60' },
+            { name: 'teal',    swatch: 'bg-teal-500',    bar: '#14b8a6', check: 'bg-teal-500 hover:bg-teal-600 text-white border-teal-500 shadow-sm shadow-teal-500/30',         badge: 'bg-teal-50 text-teal-600 dark:bg-teal-950/70 dark:text-teal-400 border border-teal-200/60 dark:border-teal-800/60' },
+            { name: 'fuchsia', swatch: 'bg-fuchsia-500', bar: '#d946ef', check: 'bg-fuchsia-500 hover:bg-fuchsia-600 text-white border-fuchsia-500 shadow-sm shadow-fuchsia-500/30', badge: 'bg-fuchsia-50 text-fuchsia-600 dark:bg-fuchsia-950/70 dark:text-fuchsia-400 border border-fuchsia-200/60 dark:border-fuchsia-800/60' },
+            { name: 'orange',  swatch: 'bg-orange-500',  bar: '#f97316', check: 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500 shadow-sm shadow-orange-500/30', badge: 'bg-orange-50 text-orange-600 dark:bg-orange-950/70 dark:text-orange-400 border border-orange-200/60 dark:border-orange-800/60' },
+            { name: 'lime',    swatch: 'bg-lime-500',    bar: '#84cc16', check: 'bg-lime-500 hover:bg-lime-600 text-white border-lime-500 shadow-sm shadow-lime-500/30',         badge: 'bg-lime-50 text-lime-700 dark:bg-lime-950/70 dark:text-lime-400 border border-lime-200/60 dark:border-lime-800/60' },
+            { name: 'pink',    swatch: 'bg-pink-500',    bar: '#ec4899', check: 'bg-pink-500 hover:bg-pink-600 text-white border-pink-500 shadow-sm shadow-pink-500/30',         badge: 'bg-pink-50 text-pink-600 dark:bg-pink-950/70 dark:text-pink-400 border border-pink-200/60 dark:border-pink-800/60' }
+        ];
+        let newCatColor = 0;
+
+        // Rebuilds CATEGORIES = built-ins + user categories (all custom ones share the default 🏷️ label icon)
+        function rebuildCategories() {
+            CATEGORIES = { ...BASE_CATEGORIES };
+            state.customCategories.forEach(c => {
+                const col = CAT_COLORS[c.color] || CAT_COLORS[0];
+                CATEGORIES[c.id] = {
+                    id: c.id, name: c.name, emoji: '🏷️', custom: true,
+                    badgeClass: col.badge, checkColor: col.check, barColor: col.bar
+                };
+            });
+        }
+
+        function renderCategoryOptions(selected) {
+            const sel = document.getElementById('habit-category-input');
+            if (!sel) return;
+            const keep = selected !== undefined ? selected : sel.value;
+            sel.innerHTML = Object.values(CATEGORIES).filter(c => c.id !== 'all')
+                .map(c => `<option value="${c.id}">${c.emoji} ${escapeHTML(c.name)}</option>`).join('');
+            if (keep && CATEGORIES[keep]) sel.value = keep;
+        }
+
+        function openCategoryModal() {
+            document.getElementById('new-category-name').value = '';
+            document.getElementById('category-form-error').classList.add('hidden');
+            renderCategoryManager();
+            const m = document.getElementById('category-modal');
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+        }
+        function closeCategoryModal() {
+            const m = document.getElementById('category-modal');
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        }
+
+        function renderCategoryManager() {
+            const colors = document.getElementById('new-category-colors');
+            colors.innerHTML = CAT_COLORS.map((c, i) => `
+                <button type="button" onclick="pickNewCategoryColor(${i})" aria-label="色 ${c.name}"
+                    class="w-8 h-8 rounded-full ${c.swatch} ${i === newCatColor ? 'ring-2 ring-offset-2 ring-slate-700 dark:ring-slate-200 dark:ring-offset-slate-900' : ''}"></button>
+            `).join('');
+
+            const list = document.getElementById('custom-category-list');
+            if (state.customCategories.length === 0) {
+                list.innerHTML = '<p class="text-xs text-slate-400 dark:text-slate-500">まだありません。上のフォームから追加できます。</p>';
+            } else {
+                list.innerHTML = state.customCategories.map(c => {
+                    const col = CAT_COLORS[c.color] || CAT_COLORS[0];
+                    const count = state.habits.filter(h => h.category === c.id).length;
+                    return `
+                        <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800">
+                            <button type="button" onclick="cycleCategoryColor('${c.id}')" aria-label="色を変更" class="w-8 h-8 shrink-0 rounded-full ${col.swatch}"></button>
+                            <input type="text" value="${escapeHTML(c.name)}" maxlength="12" onchange="renameCategory('${c.id}', this.value)"
+                                class="flex-1 min-w-0 px-2 py-1.5 bg-transparent text-sm font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <span class="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">${count}件</span>
+                            <button type="button" onclick="deleteCategory('${c.id}')" aria-label="削除"
+                                class="w-10 h-10 shrink-0 inline-flex items-center justify-center rounded-full text-slate-400 hover:text-rose-600 active:bg-rose-100 dark:active:bg-rose-950/50">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>`;
+                }).join('');
+            }
+            lucide.createIcons();
+        }
+
+        function pickNewCategoryColor(i) {
+            newCatColor = i;
+            renderCategoryManager();
+        }
+
+        function categoryNameExists(name, exceptId) {
+            const n = name.trim().toLowerCase();
+            return Object.values(CATEGORIES).some(c => c.id !== 'all' && c.id !== exceptId && c.name.trim().toLowerCase() === n);
+        }
+
+        function addCategory(e) {
+            e.preventDefault();
+            const input = document.getElementById('new-category-name');
+            const err = document.getElementById('category-form-error');
+            const name = input.value.trim();
+            if (!name) {
+                err.textContent = 'カテゴリ名を入力してください';
+                err.classList.remove('hidden');
+                return;
+            }
+            if (categoryNameExists(name)) {
+                err.textContent = '同じ名前のカテゴリがすでにあります';
+                err.classList.remove('hidden');
+                return;
+            }
+            err.classList.add('hidden');
+            const id = 'c-' + Date.now();
+            state.customCategories.push({ id, name, color: newCatColor });
+            newCatColor = (newCatColor + 1) % CAT_COLORS.length;
+            rebuildCategories();
+            saveState();
+            input.value = '';
+            renderCategoryOptions(id);       // selects it in the habit form if that is open
+            renderAll();
+            renderCategoryManager();
+            showToast(`カテゴリ「${name}」を追加しました`);
+        }
+
+        function renameCategory(id, value) {
+            const name = value.trim();
+            const c = state.customCategories.find(x => x.id === id);
+            if (!c) return;
+            if (!name || categoryNameExists(name, id)) {
+                showToast(!name ? 'カテゴリ名を入力してください' : '同じ名前のカテゴリがすでにあります');
+                renderCategoryManager();
+                return;
+            }
+            c.name = name;
+            rebuildCategories();
+            saveState();
+            renderCategoryOptions();
+            renderAll();
+        }
+
+        function cycleCategoryColor(id) {
+            const c = state.customCategories.find(x => x.id === id);
+            if (!c) return;
+            c.color = ((c.color || 0) + 1) % CAT_COLORS.length;
+            rebuildCategories();
+            saveState();
+            renderAll();
+            renderCategoryManager();
+        }
+
+        function deleteCategory(id) {
+            const c = state.customCategories.find(x => x.id === id);
+            if (!c) return;
+            if (state.habits.some(h => h.category === id)) {
+                showToast('このカテゴリを使っている習慣があります。先に習慣のカテゴリを変更してください');
+                return;
+            }
+            state.customCategories = state.customCategories.filter(x => x.id !== id);
+            if (state.selectedCategory === id) state.selectedCategory = 'all';
+            rebuildCategories();
+            saveState();
+            renderCategoryOptions();
+            renderAll();
+            renderCategoryManager();
+            showToast(`カテゴリ「${c.name}」を削除しました`);
+        }
+
+        // Refresh when the app comes back to the foreground (new day / new week)
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                state.activeDayIndex = getTodayIndexMondayBased();
+                syncDaySelectors();
+                renderAll();
+            }
+        });
 
         /* ========================================================
            8. UTILITIES (TOAST & ESCAPE HTML)
