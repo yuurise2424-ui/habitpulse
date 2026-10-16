@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="ja" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="HabitPulse">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <title>HabitPulse - 週間習慣トラッキングダッシュボード</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Noto Sans JP -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Canvas Confetti for celebrations -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.4);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(107, 114, 128, 0.6);
+        }
+        .check-btn {
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .check-btn:active {
+            transform: scale(0.85);
+        }
+        @keyframes pulse-subtle {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.06); }
+        }
+        .streak-badge-active {
+            animation: pulse-subtle 2.5s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+    <!-- Top Navigation / Header -->
+    <header class="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <!-- Brand Title -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                    <i data-lucide="flame" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+                            HabitPulse
+                        </h1>
+                        <span class="hidden sm:inline-block text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/80 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                            Weekly Tracker
+                        </span>
+                    </div>
+                    <p id="current-week-label" class="text-xs text-slate-500 dark:text-slate-400">
+                        2026年10月 第3週 (月〜日)
+                    </p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- Day Simulation Selector (For testing streaks cleanly) -->
+                <div class="hidden md:flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 text-xs">
+                    <span class="px-2 text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
+                        <i data-lucide="calendar-clock" class="w-3.5 h-3.5"></i>基準曜日:
+                    </span>
+                    <select id="active-day-select" onchange="changeActiveDay(this.value)" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-semibold rounded-lg px-2 py-1 border-0 focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                        <option value="0">月曜日</option>
+                        <option value="1">火曜日</option>
+                        <option value="2">水曜日</option>
+                        <option value="3">木曜日</option>
+                        <option value="4">金曜日 (今日)</option>
+                        <option value="5">土曜日</option>
+                        <option value="6">日曜日</option>
+                    </select>
+                </div>
+
+                <!-- Add Habit Button -->
+                <button onclick="openHabitModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 shadow-sm shadow-indigo-500/20 transition-all">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span>新しい習慣</span>
+                </button>
+                
+                <!-- PWA Install Button (Hidden by default, shown when installable) -->
+                <button id="pwa-install-btn" onclick="installPWA()" class="hidden inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 shadow-sm shadow-pink-500/20 transition-all animate-pulse">
+                    <i data-lucide="download-cloud" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">アプリをインストール</span>
+                </button>
+
+                <!-- Install / Mobile App Guide Button -->
+                <button onclick="openAppGuideModal()" title="スマホでアプリとして使う方法・バックアップ" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900/60 border border-indigo-200/70 dark:border-indigo-800/70 transition-colors">
+                    <i data-lucide="smartphone" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">保存・復元</span>
+                </button>
+                <!-- Reset / Clear Data Button -->
+                <button onclick="openResetModal()" title="データリセット・管理" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">リセット</span>
+                </button>
+
+                <!-- Dark Mode Toggle -->
+                <button onclick="toggleTheme()" id="theme-toggle-btn" title="テーマ切り替え" class="p-2 rounded-xl text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors">
+                    <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-amber-400"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- KPI Summary Cards (4 Columns) -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Card 1: Overall Weekly Completion -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">週間達成率</span>
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                        <i data-lucide="pie-chart" class="w-5 h-5"></i>
+                    </div>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <div>
+                        <span id="kpi-weekly-rate" class="text-3xl font-bold tracking-tight">0%</span>
+                        <span id="kpi-weekly-fraction" class="ml-2 text-xs text-slate-500 dark:text-slate-400">(0 / 0 完了)</span>
+                    </div>
+                </div>
+                <div class="mt-3 w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div id="kpi-weekly-bar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Card 2: Today's Progress -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                        <span id="kpi-today-title" class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">今日の達成状況</span>
+                    </div>
+                    <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                    </div>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <div>
+                        <span id="kpi-today-count" class="text-3xl font-bold tracking-tight">0 / 0</span>
+                        <span class="ml-1 text-xs text-slate-500 dark:text-slate-400">習慣</span>
+                    </div>
+                    <span id="kpi-today-badge" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/70 dark:text-emerald-400">
+                        0%
+                    </span>
+                </div>
+                <div class="mt-3 w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div id="kpi-today-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Card 3: Longest Active Streak -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">最長連続ストリーク</span>
+                    <div class="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-500 dark:text-amber-400 flex items-center justify-center">
+                        <i data-lucide="flame" class="w-5 h-5"></i>
+                    </div>
+                </div>
+                <div class="mt-3 flex items-baseline gap-2">
+                    <span id="kpi-best-streak" class="text-3xl font-bold tracking-tight text-amber-500 dark:text-amber-400">0 日連続</span>
+                </div>
+                <p id="kpi-best-habit" class="mt-3 text-xs text-slate-500 dark:text-slate-400 truncate">
+                    対象: なし
+                </p>
+            </div>
+
+            <!-- Card 4: Perfect Days Count -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">パーフェクト達成日</span>
+                    <div class="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                        <i data-lucide="award" class="w-5 h-5"></i>
+                    </div>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <div>
+                        <span id="kpi-perfect-days" class="text-3xl font-bold tracking-tight">0</span>
+                        <span class="ml-1 text-xs text-slate-500 dark:text-slate-400">/ 7 日間</span>
+                    </div>
+                    <span id="kpi-motivation-tag" class="text-xs font-medium text-purple-600 dark:text-purple-400">
+                        継続は力なり！
+                    </span>
+                </div>
+                <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                    全習慣を100%コンプリートした曜日
+                </p>
+            </div>
+        </section>
+
+        <!-- Main Grid: Habit Matrix (Left/Top) + Charts & Analytics (Right/Bottom) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- Left Column: Weekly Habit Matrix (8 cols on large screens) -->
+            <section class="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+                <!-- Matrix Header & Filters -->
+                <div class="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold flex items-center gap-2">
+                            <i data-lucide="calendar-check-2" class="w-5 h-5 text-indigo-500"></i>
+                            <span>週間習慣マトリックス</span>
+                        </h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            各曜日のボタンをクリックして達成状況を記録・切り替えできます
+                        </p>
+                    </div>
+
+                    <!-- Mobile Active Day Selector -->
+                    <div class="flex md:hidden items-center justify-between bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-1.5 text-xs">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium">基準曜日 (今日):</span>
+                        <select id="mobile-active-day-select" onchange="changeActiveDay(this.value)" class="bg-transparent font-semibold text-indigo-600 dark:text-indigo-400 focus:outline-none">
+                            <option value="0">月曜日</option>
+                            <option value="1">火曜日</option>
+                            <option value="2">水曜日</option>
+                            <option value="3">木曜日</option>
+                            <option value="4">金曜日</option>
+                            <option value="5">土曜日</option>
+                            <option value="6">日曜日</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Category Filter Tabs -->
+                <div class="px-4 sm:px-6 py-3 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 overflow-x-auto">
+                    <div id="category-tabs" class="flex items-center space-x-1.5">
+                        <!-- Dynamically rendered category pills -->
+                    </div>
+                    <button onclick="quickCompleteToday()" class="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors">
+                        <i data-lucide="check-check" class="w-3.5 h-3.5"></i>
+                        <span id="quick-complete-label">金曜をすべて完了</span>
+                    </button>
+                </div>
+
+                <!-- Responsive Matrix Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[640px]">
+                        <thead>
+                            <tr id="matrix-header-row" class="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-50/40 dark:bg-slate-900/40">
+                                <!-- Filled dynamically by JS -->
+                            </tr>
+                        </thead>
+                        <tbody id="habit-matrix-body" class="divide-y divide-slate-200/70 dark:divide-slate-800/80 text-sm">
+                            <!-- Filled dynamically by JS -->
+                        </tbody>
+                        <tfoot id="habit-matrix-footer" class="bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            <!-- Daily summary row filled by JS -->
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- Empty State (Hidden when habits exist) -->
+                <div id="empty-state" class="hidden py-14 px-4 text-center">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-500 mx-auto flex items-center justify-center mb-3">
+                        <i data-lucide="list-plus" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">登録されている習慣がありません</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                        データはクリーンな状態です。「習慣を追加する」ボタンから、あなた自身の毎日の目標を登録してトラッキングを始めましょう！
+                    </p>
+                    <div class="mt-5 flex items-center justify-center gap-2.5 flex-wrap">
+                        <button onclick="openHabitModal()" class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm shadow-indigo-500/20 transition-all">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            最初の習慣を追加する
+                        </button>
+                        <button onclick="loadSampleData()" class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
+                            サンプル目標を読み込む
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Weekly Charts & Streak Leaderboard (4 cols on large screens) -->
+            <aside class="lg:col-span-4 space-y-6">
+
+                <!-- 1. Weekly Completion Chart Card -->
+                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-base font-bold flex items-center gap-2">
+                                <i data-lucide="bar-chart-3" class="w-5 h-5 text-indigo-500"></i>
+                                <span>曜日別達成チャート</span>
+                            </h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                1週間の達成数と達成率（%）の推移
+                            </p>
+                        </div>
+                        <!-- Chart Type Switcher -->
+                        <div class="inline-flex rounded-xl p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            <button onclick="setChartMode('bar')" id="chart-btn-bar" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm">
+                                棒グラフ
+                            </button>
+                            <button onclick="setChartMode('line')" id="chart-btn-line" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all text-slate-500 dark:text-slate-400">
+                                折れ線
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Chart Canvas Wrapper -->
+                    <div class="relative h-60 w-full">
+                        <canvas id="weeklyChart"></canvas>
+                    </div>
+
+                    <!-- Mini Legend / Insight -->
+                    <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span id="chart-insight-best">最高曜日: -</span>
+                        <span id="chart-insight-avg">週平均: 0%</span>
+                    </div>
+                </div>
+
+                <!-- 2. Streak Ranking & Category Breakdown -->
+                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h3 class="text-base font-bold flex items-center gap-2">
+                                <i data-lucide="zap" class="w-5 h-5 text-amber-500"></i>
+                                <span>連続達成ストリーク & 目標進捗</span>
+                            </h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                基準曜日からの継続日数と週間目標の達成度
+                            </p>
+                        </div>
+                    </div>
+
+                    <div id="streak-ranking-list" class="space-y-3 mt-4">
+                        <!-- Dynamically populated habit streak items -->
+                    </div>
+                </div>
+
+                <!-- 3. Category Distribution Card -->
+                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                    <h3 class="text-sm font-bold flex items-center gap-2 mb-3">
+                        <i data-lucide="layers" class="w-4 h-4 text-purple-500"></i>
+                        <span>カテゴリ別達成バランス</span>
+                    </h3>
+                    <div id="category-breakdown-list" class="space-y-2.5">
+                        <!-- Dynamically populated category progress bars -->
+                    </div>
+                </div>
+
+            </aside>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-auto border-t border-slate-200/80 dark:border-slate-800 py-4 px-4 text-center text-xs text-slate-400 dark:text-slate-500">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p>HabitPulse Dashboard — データはお使いのブラウザ（localStorage）に自動保存されます</p>
+            <p class="flex items-center gap-1">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i>
+                <span>小さな習慣の積み重ねが大きな成果を生みます</span>
+            </p>
+        </div>
+    </footer>
+
+    <!-- ==========================================
+         MODAL 1: Add / Edit Habit Modal
+    =========================================== -->
+    <div id="habit-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <h3 id="modal-title" class="text-base font-bold">新しい習慣を追加</h3>
+                <button onclick="closeHabitModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form onsubmit="saveHabitForm(event)" class="p-6 space-y-4">
+                <input type="hidden" id="habit-id-input">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">習慣・目標の名前 <span class="text-rose-500">*</span></label>
+                    <input type="text" id="habit-name-input" placeholder="例: 朝のランニング 20分" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <p id="habit-form-error" class="hidden text-xs text-rose-500 mt-1">習慣の名前を入力してください</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">カテゴリ</label>
+                        <select id="habit-category-input" class="w-full px-3 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="training">💪 トレーニング</option>
+                            <option value="study">📚 学習・スキル</option>
+                            <option value="health">🥗 栄養・健康</option>
+                            <option value="mind">🧘 マインド・生活</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">週の目標日数</label>
+                        <select id="habit-target-input" class="w-full px-3 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="1">週 1 日</option>
+                            <option value="2">週 2 日</option>
+                            <option value="3">週 3 日</option>
+                            <option value="4">週 4 日</option>
+                            <option value="5" selected>週 5 日</option>
+                            <option value="6">週 6 日</option>
+                            <option value="7">毎日 (週 7 日)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">メモ・具体的なルール（任意）</label>
+                    <input type="text" id="habit-note-input" placeholder="例: 起床後すぐにプロテインと一緒に飲む" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="pt-2 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeHabitModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors">
+                        キャンセル
+                    </button>
+                    <button type="submit" class="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm transition-colors">
+                        保存する
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL 2: Delete Single Habit Confirmation Modal
+    =========================================== -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-6 text-center">
+            <div id="confirm-modal-icon" class="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center mb-4">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+            </div>
+            <h3 id="confirm-modal-title" class="text-base font-bold">習慣の削除</h3>
+            <p id="confirm-modal-desc" class="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                この習慣を削除してもよろしいですか？
+            </p>
+            <div class="mt-6 flex items-center justify-center gap-3">
+                <button onclick="closeConfirmModal()" class="flex-1 px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors">
+                    キャンセル
+                </button>
+                <button id="confirm-modal-action-btn" class="flex-1 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 shadow-sm transition-colors">
+                    実行する
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL 3: Data Reset & Clear Options Modal
+    =========================================== -->
+    <div id="reset-options-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <h3 class="text-base font-bold flex items-center gap-2">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5 text-indigo-500"></i>
+                    <span>データのリセット・初期化</span>
+                </h3>
+                <button onclick="closeResetOptionsModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-3">
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                    目的に合わせてリセット方法を選択してください：
+                </p>
+
+                <!-- Option 1: Clear Only Weekly Checkmarks (Start New Week) -->
+                <button onclick="clearWeeklyChecksOnly()" class="w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 transition-all flex items-start gap-3.5 group">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                        <i data-lucide="calendar-off" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-slate-800 dark:text-slate-100">今週の達成チェックだけをすべて外す（0%にする）</div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            登録した習慣リストは残したまま、月〜日のチェック記録だけを未達成状態にクリアして新しい週を始めます。
+                        </p>
+                    </div>
+                </button>
+
+                <!-- Option 2: Clear Everything (Blank Slate) -->
+                <button onclick="clearAllHabitsZero()" class="w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-rose-500 dark:hover:border-rose-500 hover:bg-rose-50/40 dark:hover:bg-rose-950/30 transition-all flex items-start gap-3.5 group">
+                    <div class="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-slate-800 dark:text-slate-100">すべての習慣を削除してゼロから始める</div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            サンプル目標を含むすべての習慣データを消去し、真っ白な状態から自分の習慣だけを登録します。
+                        </p>
+                    </div>
+                </button>
+
+                <!-- Option 3: Restore Sample Habits (Unchecked) -->
+                <button onclick="loadSampleData(true)" class="w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/30 transition-all flex items-start gap-3.5 group">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-slate-800 dark:text-slate-100">定番の習慣項目だけセットして0%から始める</div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            筋トレ・学習・読書・健康などの定番6項目を、すべて未チェック（達成率0%）の状態で読み込みます。
+                        </p>
+                    </div>
+                </button>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+                <button onclick="closeResetOptionsModal()" class="px-4 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700 transition-colors">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL 4: Mobile App / Home Screen Guide & Data Backup
+    =========================================== -->
+    <div id="app-guide-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+                <h3 class="text-base font-bold flex items-center gap-2">
+                    <i data-lucide="smartphone" class="w-5 h-5 text-indigo-500"></i>
+                    <span>ホーム画面への追加方法 ＆ データ保存</span>
+                </h3>
+                <button onclick="closeAppGuideModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                <!-- Current URL Status Notice -->
+                <div id="protocol-warning-box" class="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200">
+                    <div class="font-bold text-sm flex items-center gap-1.5 mb-1">
+                        <i data-lucide="info" class="w-4 h-4 text-amber-600 shrink-0"></i>
+                        <span>なぜ「ホーム画面に追加」が出ないの？</span>
+                    </div>
+                    <p>
+                        AndroidのChromeでは、スマホ内にダウンロードしたファイル（URLが <code>content://</code> や <code>file://</code> の状態）を直接開いていると、Chromeの制限によりメニューに「ホーム画面に追加」が表示されません。
+                    </p>
+                </div>
+
+                <!-- 2 Solutions for Mobile Users -->
+                <div class="space-y-3">
+                    <h4 class="font-bold text-sm text-slate-900 dark:text-white">💡 スマホのホーム画面から1タップで開く2つの方法</h4>
+
+                    <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70">
+                        <div class="font-bold text-indigo-600 dark:text-indigo-400 mb-1">方法①：Geminiの「公開リンク（共有URL）」をChromeで開く（一番簡単！）</div>
+                        <ol class="list-decimal list-inside space-y-1 text-slate-600 dark:text-slate-300">
+                            <li>Geminiのプレビュー画面右上にある<strong>「共有（Share）」ボタン</strong>から公開リンクを作成します。</li>
+                            <li>そのリンク（<code>https://...</code>）をChromeで開くと、メニューに<strong>「ホーム画面に追加」</strong>が出現します！</li>
+                        </ol>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70">
+                        <div class="font-bold text-emerald-600 dark:text-emerald-400 mb-1">方法②：「現在のデータごとHTML保存」してファイルアプリからショートカット作成</div>
+                        <p class="mb-2">
+                            下のボタンを使うと、<strong>今入力されている習慣とチェック状態がすべて埋め込まれた専用のHTMLファイル</strong>を保存できます。Androidの「Files by Google」やファイルマネージャーでそのHTMLファイルを長押しし、「ホーム画面にショートカットを追加」を選ぶと1タップで開けます。
+                        </p>
+                        <button onclick="exportStandaloneHTML()" class="w-full py-2.5 px-4 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-sm flex items-center justify-center gap-2 transition-all">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            <span>現在のデータを埋め込んだHTMLを保存</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Backup & Restore JSON Section -->
+                <div class="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                    <h4 class="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <i data-lucide="database-backup" class="w-4 h-4 text-purple-500"></i>
+                        <span>データのバックアップ・引き継ぎ</span>
+                    </h4>
+                    <p>
+                        <code>content://</code> で開いている場合、ブラウザを閉じると記録がリセットされることがあります。以下のボタンでいつでも記録をコピー・復元できます。
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button onclick="copyBackupJSON()" class="py-2.5 px-3 rounded-xl font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors">
+                            <i data-lucide="copy" class="w-4 h-4 text-indigo-500"></i>
+                            <span>バックアップをコピー</span>
+                        </button>
+                        <button onclick="toggleRestoreBox()" class="py-2.5 px-3 rounded-xl font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors">
+                            <i data-lucide="upload" class="w-4 h-4 text-purple-500"></i>
+                            <span>バックアップから復元</span>
+                        </button>
+                    </div>
+
+                    <!-- Hidden Restore Input Box -->
+                    <div id="restore-box" class="hidden pt-2 space-y-2">
+                        <textarea id="restore-json-input" rows="3" placeholder="コピーしたバックアップデータ（JSON）をここに貼り付けてください" class="w-full p-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                        <button onclick="applyRestoreJSON()" class="w-full py-2 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors">
+                            データを復元する
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end shrink-0">
+                <button onclick="closeAppGuideModal()" class="px-4 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700 transition-colors">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 pointer-events-none flex flex-col gap-2"></div>
+
+    <!-- Application JavaScript -->
+    <script>
+        /* ========================================================
+           1. CONSTANTS, CATEGORIES & INITIAL PRESET DATA
+        ======================================================== */
+        const STORAGE_KEY = 'habitpulse_dashboard_v2_clean';
+        const THEME_KEY = 'habitpulse_theme_v1';
+        const DAYS_JP = ['月', '火', '水', '木', '金', '土', '日'];
+        const DAYS_FULL_JP = ['月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日', '日曜日'];
+
+        const CATEGORIES = {
+            all: {
+                id: 'all',
+                name: 'すべて',
+                emoji: '✨',
+                badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+                barColor: '#6366f1'
+            },
+            training: {
+                id: 'training',
+                name: 'トレーニング',
+                emoji: '💪',
+                badgeClass: 'bg-rose-50 text-rose-600 dark:bg-rose-950/70 dark:text-rose-400 border border-rose-200/60 dark:border-rose-800/60',
+                checkColor: 'bg-rose-500 hover:bg-rose-600 text-white border-rose-500 shadow-sm shadow-rose-500/30',
+                barColor: '#f43f5e'
+            },
+            study: {
+                id: 'study',
+                name: '学習・スキル',
+                emoji: '📚',
+                badgeClass: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/70 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60',
+                checkColor: 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-600 shadow-sm shadow-indigo-500/30',
+                barColor: '#6366f1'
+            },
+            health: {
+                id: 'health',
+                name: '栄養・健康',
+                emoji: '🥗',
+                badgeClass: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/70 dark:text-emerald-400 border border-emerald-200/60 dark:border-rose-800/60',
+                checkColor: 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-sm shadow-emerald-500/30',
+                barColor: '#10b981'
+            },
+            mind: {
+                id: 'mind',
+                name: 'マインド・生活',
+                emoji: '🧘',
+                badgeClass: 'bg-amber-50 text-amber-600 dark:bg-amber-950/70 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/60',
+                checkColor: 'bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm shadow-amber-500/30',
+                barColor: '#f59e0b'
+            }
+        };
+
+        // Clean starter habits with all days reset to false (0% completion) so the user can start tracking immediately
+        const DEFAULT_HABITS = [
+            {
+                id: 'h-1',
+                name: '筋トレ・ジムワークアウト',
+                category: 'training',
+                targetDays: 4,
+                note: 'ウェイト45分＋有酸素15分',
+                days: [false, false, false, false, false, false, false]
+            },
+            {
+                id: 'h-2',
+                name: '資格勉強・プログラミング（60分）',
+                category: 'study',
+                targetDays: 6,
+                note: '朝活または帰宅後に集中60分',
+                days: [false, false, false, false, false, false, false]
+            },
+            {
+                id: 'h-3',
+                name: '高タンパク食・サプリ摂取',
+                category: 'health',
+                targetDays: 7,
+                note: 'タンパク質体重×2g・マルチビタミン',
+                days: [false, false, false, false, false, false, false]
+            },
+            {
+                id: 'h-4',
+                name: '読書・ノート整理（30分）',
+                category: 'study',
+                targetDays: 5,
+                note: 'ビジネス書・技術書の要約メモ',
+                days: [false, false, false, false, false, false, false]
+            },
+            {
+                id: 'h-5',
+                name: '朝のストレッチ＆水分補給 2L',
+                category: 'health',
+                targetDays: 7,
+                note: '起床後コップ1杯の水＋全身モビリティ',
+                days: [false, false, false, false, false, false, false]
+            },
+            {
+                id: 'h-6',
+                name: 'デジタルデトックス＆7時間睡眠',
+                category: 'mind',
+                targetDays: 6,
+                note: '就寝30分前のスマホオフ',
+                days: [false, false, false, false, false, false, false]
+            }
+        ];
+
+        /* ========================================================
+           2. APPLICATION STATE
+        ======================================================== */
+        // Automatically detect current day of week (Monday = 0 ... Sunday = 6)
+        function getTodayIndexMondayBased() {
+            const jsDay = new Date().getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+            return jsDay === 0 ? 6 : jsDay - 1;
+        }
+
+        let state = {
+            habits: [],
+            selectedCategory: 'all',
+            activeDayIndex: getTodayIndexMondayBased(),
+            chartMode: 'bar'   // 'bar' or 'line'
+        };
+
+        let weeklyChartInstance = null;
+
+        /* ========================================================
+           3. INITIALIZATION & STORAGE
+        ======================================================== */
+        let deferredPrompt = null;
+
+        function initApp() {
+            setupServiceWorker();
+            loadTheme();
+            // Clear old demo storage key so it starts fresh
+            localStorage.removeItem('habitpulse_dashboard_v1');
+            loadState();
+            syncDaySelectors();
+            renderAll();
+            lucide.createIcons();
+        }
+
+        // Register real Service Worker (requires https:// or localhost)
+        function setupServiceWorker() {
+            if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+                navigator.serviceWorker.register('sw.js').catch(err => {
+                    console.log('SW registration failed:', err);
+                });
+            }
+        }
+
+        // Listen for the PWA install prompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Show our custom install button
+            const installBtn = document.getElementById('pwa-install-btn');
+            if(installBtn) installBtn.classList.remove('hidden');
+        });
+
+        window.addEventListener('appinstalled', () => {
+            const btn = document.getElementById('pwa-install-btn');
+            if (btn) btn.classList.add('hidden');
+            deferredPrompt = null;
+        });
+
+        // Trigger the PWA installation
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        showToast('インストールが開始されました！');
+                    }
+                    deferredPrompt = null;
+                    document.getElementById('pwa-install-btn').classList.add('hidden');
+                });
+            }
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem(THEME_KEY);
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+            updateChart();
+        }
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed.habits)) {
+                        state.habits = parsed.habits;
+                        state.activeDayIndex = typeof parsed.activeDayIndex === 'number'
+                            ? parsed.activeDayIndex
+                            : getTodayIndexMondayBased();
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to read localStorage:', e);
+            }
+            // Start with clean unchecked habits by default
+            state.habits = JSON.parse(JSON.stringify(DEFAULT_HABITS));
+            state.activeDayIndex = getTodayIndexMondayBased();
+            saveState();
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    habits: state.habits,
+                    activeDayIndex: state.activeDayIndex
+                }));
+            } catch (e) {
+                console.error('Failed to save state:', e);
+            }
+        }
+
+        function syncDaySelectors() {
+            const desktopSelect = document.getElementById('active-day-select');
+            const mobileSelect = document.getElementById('mobile-active-day-select');
+            if (desktopSelect) desktopSelect.value = String(state.activeDayIndex);
+            if (mobileSelect) mobileSelect.value = String(state.activeDayIndex);
+
+            const dayName = DAYS_JP[state.activeDayIndex];
+            const quickLabel = document.getElementById('quick-complete-label');
+            if (quickLabel) quickLabel.textContent = `${dayName}曜をすべて完了`;
+
+            const todayTitle = document.getElementById('kpi-today-title');
+            if (todayTitle) todayTitle.textContent = `${DAYS_FULL_JP[state.activeDayIndex]}の達成状況`;
+        }
+
+        function changeActiveDay(val) {
+            state.activeDayIndex = parseInt(val, 10);
+            saveState();
+            syncDaySelectors();
+            renderAll();
+            showToast(`基準曜日を「${DAYS_FULL_JP[state.activeDayIndex]}」に切り替えました`);
+        }
+
+        /* ========================================================
+           4. STREAK & METRICS CALCULATION LOGIC
+        ======================================================== */
+        /**
+         * Calculates both:
+         * - currentStreak: Consecutive checked days counting backwards from activeDayIndex (plus any consecutive days after activeDayIndex if checked).
+         * - maxWeekStreak: Longest consecutive run within the 7-day week.
+         */
+        function calculateStreakInfo(daysArray, activeIdx) {
+            // 1. Current Streak anchored at activeIdx
+            let currentStreak = 0;
+            // If today is checked, count backwards from today; if today is not yet checked, count backwards from yesterday so the user sees their ongoing streak
+            let startIdx = daysArray[activeIdx] ? activeIdx : activeIdx - 1;
+            for (let i = startIdx; i >= 0; i--) {
+                if (daysArray[i]) {
+                    currentStreak++;
+                } else {
+                    break;
+                }
+            }
+            // Also if user checked days ahead of activeIdx (e.g. weekend logged early) and activeIdx is checked, include consecutive forward days
+            if (daysArray[activeIdx]) {
+                for (let i = activeIdx + 1; i < 7; i++) {
+                    if (daysArray[i]) {
+                        currentStreak++;
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            // 2. Best streak in this 7-day window
+            let maxStreak = 0;
+            let temp = 0;
+            for (let i = 0; i < 7; i++) {
+                if (daysArray[i]) {
+                    temp++;
+                    if (temp > maxStreak) maxStreak = temp;
+                } else {
+                    temp = 0;
+                }
+            }
+
+            const completedCount = daysArray.filter(Boolean).length;
+            return {
+                currentStreak,
+                maxStreak,
+                completedCount
+            };
+        }
+
+        /* ========================================================
+           5. RENDERING FUNCTIONS
+        ======================================================== */
+        function renderAll() {
+            renderCategoryTabs();
+            renderMatrix();
+            renderKPICards();
+            renderStreakRanking();
+            renderCategoryBreakdown();
+            updateChart();
+            lucide.createIcons();
+        }
+
+        // 5.1 Render Category Filter Pills
+        function renderCategoryTabs() {
+            const container = document.getElementById('category-tabs');
+            const counts = { all: state.habits.length };
+            Object.keys(CATEGORIES).forEach(k => {
+                if (k !== 'all') counts[k] = state.habits.filter(h => h.category === k).length;
+            });
+
+            container.innerHTML = Object.values(CATEGORIES).map(cat => {
+                const isActive = state.selectedCategory === cat.id;
+                const count = counts[cat.id] || 0;
+                return `
+                    <button onclick="selectCategory('${cat.id}')"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
+                            isActive
+                                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20'
+                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70'
+                        }">
+                        <span>${cat.emoji}</span>
+                        <span>${cat.name}</span>
+                        <span class="px-1.5 py-0.2 rounded-full text-[10px] ${
+                            isActive ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                        }">${count}</span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function selectCategory(catId) {
+            state.selectedCategory = catId;
+            renderAll();
+        }
+
+        // 5.2 Render Weekly Matrix Table
+        function renderMatrix() {
+            const headerRow = document.getElementById('matrix-header-row');
+            const tbody = document.getElementById('habit-matrix-body');
+            const tfoot = document.getElementById('habit-matrix-footer');
+            const emptyState = document.getElementById('empty-state');
+
+            // Build Header
+            let headerHTML = `
+                <th class="py-3.5 pl-4 sm:pl-6 pr-3 w-64">習慣・目標</th>
+            `;
+            DAYS_JP.forEach((day, idx) => {
+                const isToday = idx === state.activeDayIndex;
+                headerHTML += `
+                    <th class="py-3.5 px-1.5 text-center w-12 ${isToday ? 'bg-indigo-50/70 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-bold' : ''}">
+                        <div class="flex flex-col items-center">
+                            <span>${day}</span>
+                            ${isToday ? '<span class="mt-0.5 text-[9px] px-1.5 py-0.2 rounded-full bg-indigo-600 text-white font-semibold">今日</span>' : '<span class="mt-0.5 text-[9px] text-transparent select-none">・</span>'}
+                        </div>
+                    </th>
+                `;
+            });
+            headerHTML += `
+                <th class="py-3.5 px-3 text-center w-24">ストリーク</th>
+                <th class="py-3.5 pl-2 pr-4 sm:pr-6 text-right w-20">操作</th>
+            `;
+            headerRow.innerHTML = headerHTML;
+
+            // Filter habits
+            const filteredHabits = state.selectedCategory === 'all'
+                ? state.habits
+                : state.habits.filter(h => h.category === state.selectedCategory);
+
+            if (filteredHabits.length === 0) {
+                tbody.innerHTML = '';
+                tfoot.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            // Build Body Rows
+            tbody.innerHTML = filteredHabits.map(habit => {
+                const cat = CATEGORIES[habit.category] || CATEGORIES.training;
+                const { currentStreak, completedCount } = calculateStreakInfo(habit.days, state.activeDayIndex);
+                const targetMet = completedCount >= habit.targetDays;
+
+                const dayCells = habit.days.map((done, dIdx) => {
+                    const isToday = dIdx === state.activeDayIndex;
+                    const btnClasses = done
+                        ? cat.checkColor
+                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-transparent border-slate-200/80 dark:border-slate-700';
+
+                    return `
+                        <td class="py-3 px-1.5 text-center ${isToday ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : ''}">
+                            <button type="button"
+                                onclick="toggleHabitDay('${habit.id}', ${dIdx})"
+                                aria-label="${habit.name} ${DAYS_FULL_JP[dIdx]} 達成切り替え"
+                                class="check-btn w-9 h-9 rounded-xl border inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 dark:focus:ring-offset-slate-900 ${btnClasses}">
+                                <i data-lucide="check" class="w-4 h-4 stroke-[3] ${done ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} transition-all"></i>
+                            </button>
+                        </td>
+                    `;
+                }).join('');
+
+                return `
+                    <tr class="group hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                        <td class="py-3.5 pl-4 sm:pl-6 pr-3">
+                            <div class="flex items-start gap-2.5">
+                                <span class="text-lg leading-none mt-0.5 select-none">${cat.emoji}</span>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="font-semibold text-slate-800 dark:text-slate-100 truncate">${escapeHTML(habit.name)}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 mt-1 flex-wrap">
+                                        <span class="text-[10px] font-medium px-2 py-0.5 rounded-md ${cat.badgeClass}">
+                                            ${cat.name}
+                                        </span>
+                                        <span class="text-[11px] ${targetMet ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400 dark:text-slate-500'}">
+                                            週目標: ${completedCount}/${habit.targetDays}日 ${targetMet ? '★' : ''}
+                                        </span>
+                                        ${habit.note ? `<span class="text-[11px] text-slate-400 dark:text-slate-500 truncate max-w-[180px]" title="${escapeHTML(habit.note)}">・${escapeHTML(habit.note)}</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        ${dayCells}
+                        <td class="py-3.5 px-3 text-center">
+                            <div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                                currentStreak >= 3
+                                    ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/80 dark:text-amber-400 border border-amber-200/70 dark:border-amber-800/70 streak-badge-active'
+                                    : currentStreak > 0
+                                    ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                    : 'bg-slate-100/60 text-slate-400 dark:bg-slate-800/50 dark:text-slate-500'
+                            }">
+                                <i data-lucide="flame" class="w-3.5 h-3.5 ${currentStreak >= 3 ? 'text-amber-500 fill-amber-500' : currentStreak > 0 ? 'text-amber-500' : 'text-slate-400'}"></i>
+                                <span>${currentStreak}日</span>
+                            </div>
+                        </td>
+                        <td class="py-3.5 pl-2 pr-4 sm:pr-6 text-right">
+                            <div class="inline-flex items-center justify-end gap-1">
+                                <button onclick="openHabitModal('${habit.id}')" title="編集"
+                                    class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="confirmDeleteHabit('${habit.id}')" title="削除"
+                                    class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Build Footer Summary Row (Daily Completion %)
+            const totalFiltered = filteredHabits.length;
+            let footerCells = `<td class="py-3 pl-4 sm:pl-6 pr-3 font-semibold text-slate-500 dark:text-slate-400">曜日別達成率</td>`;
+
+            let totalChecksInView = 0;
+            DAYS_JP.forEach((_, dIdx) => {
+                const doneCount = filteredHabits.filter(h => h.days[dIdx]).length;
+                totalChecksInView += doneCount;
+                const pct = totalFiltered > 0 ? Math.round((doneCount / totalFiltered) * 100) : 0;
+                const isToday = dIdx === state.activeDayIndex;
+                footerCells += `
+                    <td class="py-3 px-1 text-center ${isToday ? 'bg-indigo-50/60 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-bold' : ''}">
+                        <div class="text-[11px]">${pct}%</div>
+                        <div class="text-[10px] text-slate-400 font-normal">${doneCount}/${totalFiltered}</div>
+                    </td>
+                `;
+            });
+
+            const overallViewPct = totalFiltered > 0 ? Math.round((totalChecksInView / (totalFiltered * 7)) * 100) : 0;
+            footerCells += `
+                <td class="py-3 px-3 text-center font-bold text-indigo-600 dark:text-indigo-400">
+                    週計 ${overallViewPct}%
+                </td>
+                <td class="py-3 pr-4 sm:pr-6"></td>
+            `;
+            tfoot.innerHTML = `<tr>${footerCells}</tr>`;
+        }
+
+        // 5.3 Render Top 4 KPI Cards
+        function renderKPICards() {
+            const totalHabits = state.habits.length;
+            const totalPossible = totalHabits * 7;
+            const totalCompleted = state.habits.reduce((acc, h) => acc + h.days.filter(Boolean).length, 0);
+            const weeklyRate = totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
+
+            document.getElementById('kpi-weekly-rate').textContent = `${weeklyRate}%`;
+            document.getElementById('kpi-weekly-fraction').textContent = `(${totalCompleted} / ${totalPossible} 完了)`;
+            document.getElementById('kpi-weekly-bar').style.width = `${weeklyRate}%`;
+
+            // Today's Progress (based on activeDayIndex)
+            const todayCompleted = state.habits.filter(h => h.days[state.activeDayIndex]).length;
+            const todayRate = totalHabits > 0 ? Math.round((todayCompleted / totalHabits) * 100) : 0;
+            document.getElementById('kpi-today-count').textContent = `${todayCompleted} / ${totalHabits}`;
+            document.getElementById('kpi-today-badge').textContent = `${todayRate}%`;
+            document.getElementById('kpi-today-bar').style.width = `${todayRate}%`;
+
+            // Longest Active Streak
+            let bestStreak = 0;
+            let bestHabitName = 'なし';
+            state.habits.forEach(h => {
+                const { currentStreak, maxStreak } = calculateStreakInfo(h.days, state.activeDayIndex);
+                const candidate = Math.max(currentStreak, maxStreak);
+                if (candidate > bestStreak) {
+                    bestStreak = candidate;
+                    bestHabitName = h.name;
+                }
+            });
+            document.getElementById('kpi-best-streak').textContent = `${bestStreak} 日連続`;
+            document.getElementById('kpi-best-habit').textContent = `トップ習慣: ${bestHabitName}`;
+
+            // Perfect Days (100% completion across all habits)
+            let perfectDays = 0;
+            if (totalHabits > 0) {
+                for (let d = 0; d < 7; d++) {
+                    const allDone = state.habits.every(h => h.days[d]);
+                    if (allDone) perfectDays++;
+                }
+            }
+            document.getElementById('kpi-perfect-days').textContent = String(perfectDays);
+            const motivationEl = document.getElementById('kpi-motivation-tag');
+            if (perfectDays >= 5) {
+                motivationEl.textContent = '🔥 驚異的な継続力！';
+            } else if (perfectDays >= 2) {
+                motivationEl.textContent = '✨ 素晴らしいペース！';
+            } else {
+                motivationEl.textContent = '🌱 一歩ずつ積み上げよう';
+            }
+        }
+
+        // 5.4 Render Right Sidebar: Streak Ranking & Target Progress
+        function renderStreakRanking() {
+            const container = document.getElementById('streak-ranking-list');
+            if (state.habits.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">習慣データがありません</p>`;
+                return;
+            }
+
+            // Sort by current streak desc, then completedCount desc
+            const ranked = [...state.habits].map(h => {
+                const info = calculateStreakInfo(h.days, state.activeDayIndex);
+                return { ...h, ...info };
+            }).sort((a, b) => (b.currentStreak - a.currentStreak) || (b.completedCount - a.completedCount));
+
+            container.innerHTML = ranked.slice(0, 5).map(h => {
+                const cat = CATEGORIES[h.category] || CATEGORIES.training;
+                const targetPct = Math.min(100, Math.round((h.completedCount / h.targetDays) * 100));
+                return `
+                    <div class="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-800">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span>${cat.emoji}</span>
+                                <span class="text-xs font-semibold truncate">${escapeHTML(h.name)}</span>
+                            </div>
+                            <span class="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-amber-500">
+                                <i data-lucide="flame" class="w-3.5 h-3.5 fill-amber-500"></i>
+                                ${h.currentStreak}日連続
+                            </span>
+                        </div>
+                        <div class="mt-2 flex items-center gap-2">
+                            <div class="flex-1 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full transition-all duration-500" style="width: ${targetPct}%; background-color: ${cat.barColor}"></div>
+                            </div>
+                            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 w-16 text-right">
+                                ${h.completedCount}/${h.targetDays}日 (${targetPct}%)
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 5.5 Render Category Breakdown
+        function renderCategoryBreakdown() {
+            const container = document.getElementById('category-breakdown-list');
+            const catKeys = ['training', 'study', 'health', 'mind'];
+
+            container.innerHTML = catKeys.map(key => {
+                const cat = CATEGORIES[key];
+                const catHabits = state.habits.filter(h => h.category === key);
+                const possible = catHabits.length * 7;
+                const done = catHabits.reduce((sum, h) => sum + h.days.filter(Boolean).length, 0);
+                const pct = possible > 0 ? Math.round((done / possible) * 100) : 0;
+
+                return `
+                    <div>
+                        <div class="flex items-center justify-between text-xs mb-1">
+                            <span class="font-medium flex items-center gap-1.5">
+                                <span>${cat.emoji}</span>
+                                <span>${cat.name}</span>
+                                <span class="text-[10px] text-slate-400">(${catHabits.length}件)</span>
+                            </span>
+                            <span class="font-bold">${pct}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500" style="width: ${pct}%; background-color: ${cat.barColor}"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /* ========================================================
+           6. CHART.JS WEEKLY VISUALIZATION
+        ======================================================== */
+        function setChartMode(mode) {
+            state.chartMode = mode;
+            const barBtn = document.getElementById('chart-btn-bar');
+            const lineBtn = document.getElementById('chart-btn-line');
+
+            if (mode === 'bar') {
+                barBtn.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm';
+                lineBtn.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all text-slate-500 dark:text-slate-400';
+            } else {
+                lineBtn.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm';
+                barBtn.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold transition-all text-slate-500 dark:text-slate-400';
+            }
+            updateChart();
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('weeklyChart');
+            if (!ctx) return;
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const totalHabits = state.habits.length;
+
+            const dailyCounts = DAYS_JP.map((_, dIdx) =>
+                state.habits.filter(h => h.days[dIdx]).length
+            );
+            const dailyRates = dailyCounts.map(count =>
+                totalHabits > 0 ? Math.round((count / totalHabits) * 100) : 0
+            );
+
+            // Calculate chart footer insights
+            let maxRate = -1;
+            let bestDayIdx = 0;
+            dailyRates.forEach((r, idx) => {
+                if (r > maxRate) {
+                    maxRate = r;
+                    bestDayIdx = idx;
+                }
+            });
+            const avgRate = dailyRates.length > 0
+                ? Math.round(dailyRates.reduce((a, b) => a + b, 0) / 7)
+                : 0;
+
+            document.getElementById('chart-insight-best').textContent = maxRate > 0
+                ? `最高達成: ${DAYS_FULL_JP[bestDayIdx]} (${maxRate}%)`
+                : '最高達成: -';
+            document.getElementById('chart-insight-avg').textContent = `週平均: ${avgRate}%`;
+
+            if (weeklyChartInstance) {
+                weeklyChartInstance.destroy();
+            }
+
+            const barColors = DAYS_JP.map((_, idx) =>
+                idx === state.activeDayIndex
+                    ? 'rgba(79, 70, 229, 0.9)'
+                    : isDark ? 'rgba(99, 102, 241, 0.55)' : 'rgba(99, 102, 241, 0.7)'
+            );
+
+            weeklyChartInstance = new Chart(ctx, {
+                type: state.chartMode,
+                data: {
+                    labels: DAYS_JP.map((d, i) => i === state.activeDayIndex ? `${d}(今日)` : d),
+                    datasets: [
+                        {
+                            label: '達成率 (%)',
+                            data: dailyRates,
+                            backgroundColor: state.chartMode === 'bar' ? barColors : 'rgba(99, 102, 241, 0.15)',
+                            borderColor: '#6366f1',
+                            borderWidth: state.chartMode === 'bar' ? 0 : 3,
+                            borderRadius: state.chartMode === 'bar' ? 8 : 0,
+                            fill: state.chartMode === 'line',
+                            tension: 0.35,
+                            pointBackgroundColor: '#6366f1',
+                            pointRadius: state.chartMode === 'line' ? 4 : 0,
+                            pointHoverRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: isDark ? '#0f172a' : '#1e293b',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#e2e8f0',
+                            padding: 10,
+                            cornerRadius: 10,
+                            callbacks: {
+                                label: function(context) {
+                                    const idx = context.dataIndex;
+                                    const rate = dailyRates[idx];
+                                    const cnt = dailyCounts[idx];
+                                    return `達成率: ${rate}% (${cnt}/${totalHabits} 習慣)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                stepSize: 25,
+                                color: isDark ? '#94a3b8' : '#64748b',
+                                font: { size: 11 },
+                                callback: val => val + '%'
+                            },
+                            grid: {
+                                color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.2)',
+                                drawBorder: false
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: isDark ? '#cbd5e1' : '#475569',
+                                font: { size: 11, weight: '600' }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        /* ========================================================
+           7. INTERACTIVE ACTIONS (TOGGLE, ADD, EDIT, DELETE, RESET)
+        ======================================================== */
+        function toggleHabitDay(habitId, dayIdx) {
+            const habit = state.habits.find(h => h.id === habitId);
+            if (!habit) return;
+
+            habit.days[dayIdx] = !habit.days[dayIdx];
+            saveState();
+            renderAll();
+
+            // Check if all habits for that day are now 100% complete
+            const allCompletedForDay = state.habits.length > 0 && state.habits.every(h => h.days[dayIdx]);
+            if (habit.days[dayIdx] && allCompletedForDay) {
+                triggerCelebration();
+                showToast(`🎉 ${DAYS_FULL_JP[dayIdx]}の全習慣をコンプリートしました！`);
+            }
+        }
+
+        function quickCompleteToday() {
+            const dIdx = state.activeDayIndex;
+            const targetHabits = state.selectedCategory === 'all'
+                ? state.habits
+                : state.habits.filter(h => h.category === state.selectedCategory);
+
+            if (targetHabits.length === 0) return;
+
+            const allDone = targetHabits.every(h => h.days[dIdx]);
+            targetHabits.forEach(h => {
+                h.days[dIdx] = !allDone;
+            });
+
+            saveState();
+            renderAll();
+
+            if (!allDone) {
+                triggerCelebration();
+                showToast(`✨ ${DAYS_FULL_JP[dIdx]}の習慣を一括完了にしました！`);
+            } else {
+                showToast(`${DAYS_FULL_JP[dIdx]}のチェックを解除しました`);
+            }
+        }
+
+        function triggerCelebration() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 55,
+                    spread: 60,
+                    origin: { y: 0.75 }
+                });
+            }
+        }
+
+        // Modal Management: Add / Edit Habit
+        function openHabitModal(habitId = null) {
+            const modal = document.getElementById('habit-modal');
+            const titleEl = document.getElementById('modal-title');
+            const idInput = document.getElementById('habit-id-input');
+            const nameInput = document.getElementById('habit-name-input');
+            const catInput = document.getElementById('habit-category-input');
+            const targetInput = document.getElementById('habit-target-input');
+            const noteInput = document.getElementById('habit-note-input');
+            const errEl = document.getElementById('habit-form-error');
+
+            errEl.classList.add('hidden');
+
+            if (habitId) {
+                const habit = state.habits.find(h => h.id === habitId);
+                if (!habit) return;
+                titleEl.textContent = '習慣を編集';
+                idInput.value = habit.id;
+                nameInput.value = habit.name;
+                catInput.value = habit.category;
+                targetInput.value = String(habit.targetDays);
+                noteInput.value = habit.note || '';
+            } else {
+                titleEl.textContent = '新しい習慣を追加';
+                idInput.value = '';
+                nameInput.value = '';
+                catInput.value = state.selectedCategory !== 'all' ? state.selectedCategory : 'training';
+                targetInput.value = '5';
+                noteInput.value = '';
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => nameInput.focus(), 50);
+        }
+
+        function closeHabitModal() {
+            const modal = document.getElementById('habit-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function saveHabitForm(e) {
+            e.preventDefault();
+            const id = document.getElementById('habit-id-input').value;
+            const name = document.getElementById('habit-name-input').value.trim();
+            const category = document.getElementById('habit-category-input').value;
+            const targetDays = parseInt(document.getElementById('habit-target-input').value, 10);
+            const note = document.getElementById('habit-note-input').value.trim();
+            const errEl = document.getElementById('habit-form-error');
+
+            if (!name) {
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            if (id) {
+                // Edit existing
+                const habit = state.habits.find(h => h.id === id);
+                if (habit) {
+                    habit.name = name;
+                    habit.category = category;
+                    habit.targetDays = targetDays;
+                    habit.note = note;
+                    showToast(`「${name}」を更新しました`);
+                }
+            } else {
+                // Create new
+                const newHabit = {
+                    id: 'h-' + Date.now(),
+                    name,
+                    category,
+                    targetDays,
+                    note,
+                    days: [false, false, false, false, false, false, false]
+                };
+                state.habits.push(newHabit);
+                showToast(`新しい習慣「${name}」を追加しました`);
+            }
+
+            saveState();
+            closeHabitModal();
+            renderAll();
+        }
+
+        // Confirm Modal for Delete & Demo Reset
+        function confirmDeleteHabit(habitId) {
+            const habit = state.habits.find(h => h.id === habitId);
+            if (!habit) return;
+
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-modal-title').textContent = '習慣の削除';
+            document.getElementById('confirm-modal-desc').textContent = `「${habit.name}」を削除してもよろしいですか？この週の記録も消去されます。`;
+            const btn = document.getElementById('confirm-modal-action-btn');
+            btn.textContent = '削除する';
+            btn.onclick = () => {
+                state.habits = state.habits.filter(h => h.id !== habitId);
+                saveState();
+                closeConfirmModal();
+                renderAll();
+                showToast(`「${habit.name}」を削除しました`);
+            };
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function openResetModal() {
+            const modal = document.getElementById('reset-options-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeResetOptionsModal() {
+            const modal = document.getElementById('reset-options-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // Reset Option 1: Keep current habits, uncheck all days (0%)
+        function clearWeeklyChecksOnly() {
+            state.habits.forEach(h => {
+                h.days = [false, false, false, false, false, false, false];
+            });
+            saveState();
+            closeResetOptionsModal();
+            renderAll();
+            showToast('今週の達成チェックをすべてリセット（0%）しました');
+        }
+
+        // Reset Option 2: Delete all habits completely (Blank Slate)
+        function clearAllHabitsZero() {
+            state.habits = [];
+            state.selectedCategory = 'all';
+            saveState();
+            closeResetOptionsModal();
+            renderAll();
+            showToast('すべての習慣データを消去しました。新しい習慣を追加できます');
+        }
+
+        // Reset Option 3: Load clean unchecked sample habits
+        function loadSampleData(fromModal = false) {
+            state.habits = JSON.parse(JSON.stringify(DEFAULT_HABITS));
+            state.selectedCategory = 'all';
+            state.activeDayIndex = getTodayIndexMondayBased();
+            saveState();
+            syncDaySelectors();
+            if (fromModal) closeResetOptionsModal();
+            renderAll();
+            showToast('定番の習慣リストを未チェック状態（0%）でセットしました');
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // App Guide & Backup Modal Functions
+        function openAppGuideModal() {
+            const modal = document.getElementById('app-guide-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeAppGuideModal() {
+            const modal = document.getElementById('app-guide-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function copyBackupJSON() {
+            const dataStr = JSON.stringify({
+                habits: state.habits,
+                activeDayIndex: state.activeDayIndex
+            });
+            const tempInput = document.createElement('textarea');
+            tempInput.value = dataStr;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast('📋 バックアップデータをクリップボードにコピーしました！メモ帳などに貼り付けて保存できます');
+        }
+
+        function toggleRestoreBox() {
+            const box = document.getElementById('restore-box');
+            box.classList.toggle('hidden');
+        }
+
+        function applyRestoreJSON() {
+            const raw = document.getElementById('restore-json-input').value.trim();
+            if (!raw) {
+                showToast('⚠️ バックアップデータを貼り付けてください');
+                return;
+            }
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed.habits)) {
+                    state.habits = parsed.habits;
+                    if (typeof parsed.activeDayIndex === 'number') {
+                        state.activeDayIndex = parsed.activeDayIndex;
+                    }
+                    saveState();
+                    syncDaySelectors();
+                    renderAll();
+                    closeAppGuideModal();
+                    showToast('✅ バックアップからデータを復元しました！');
+                } else {
+                    showToast('⚠️ データ形式が正しくありません');
+                }
+            } catch (e) {
+                showToast('⚠️ JSONの解析に失敗しました');
+            }
+        }
+
+        // Export a standalone HTML file with current state baked into DEFAULT_HABITS
+        function exportStandaloneHTML() {
+            let htmlContent = document.documentElement.outerHTML;
+            const currentHabitsJson = JSON.stringify(state.habits, null, 4);
+            htmlContent = htmlContent.replace(
+                /const DEFAULT_HABITS = \[[\s\S]*?\];/,
+                `const DEFAULT_HABITS = ${currentHabitsJson};`
+            );
+            const blob = new Blob(['<!DOCTYPE html>\n' + htmlContent], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'HabitPulse_MyTracker.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('💾 現在のデータを埋め込んだHTMLを保存しました！');
+        }
+
+        /* ========================================================
+           8. UTILITIES (TOAST & ESCAPE HTML)
+        ======================================================== */
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold shadow-lg border border-slate-700 dark:border-slate-200 transition-all duration-300 opacity-0 translate-y-2';
+            toast.innerHTML = `
+                <span>${escapeHTML(message)}</span>
+            `;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-2');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 2600);
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(m) {
+                return ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                })[m];
+            });
+        }
+
+        // Start App on DOM Ready
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
