@@ -771,7 +771,20 @@
                 </div>
                 <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">複数選ぶと、その中からランダムで登場します。あとからいつでも変更できます。</p>
             </div>
-            <div id="character-grid" class="p-4 grid grid-cols-2 gap-2.5"></div>
+            <div id="character-grid" class="p-4 pb-2 grid grid-cols-2 gap-2.5"></div>
+            <div class="px-4 pt-2 pb-4">
+                <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 p-4">
+                    <div class="flex items-center justify-between gap-2">
+                        <h4 class="text-sm font-bold">性格のつまみ</h4>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="previewTune('check')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 active:scale-95 transition-transform">褒めを試す</button>
+                            <button type="button" onclick="previewTune('nudge')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 active:scale-95 transition-transform">喝を試す</button>
+                        </div>
+                    </div>
+                    <div id="tune-panel" class="mt-3 space-y-4"></div>
+                    <button type="button" onclick="resetTune()" class="mt-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 underline">ふつうに戻す</button>
+                </div>
+            </div>
             <div class="sticky bottom-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center gap-2">
                 <button type="button" onclick="selectAllCharacters()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors">全員</button>
                 <button type="button" onclick="saveCharacters()" class="flex-1 py-2.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm transition-colors">決定</button>
@@ -912,6 +925,7 @@
             badges: {},         // { badgeId: 'YYYY-MM-DD' } unlock dates
             customCategories: [],
             reorderMode: false,
+            tune: null,             // personality knobs {scold,kind,praise,energy} 0-4; null = defaults
             characters: null,       // null = not chosen yet; otherwise array of character ids (+ 'meigen')
             selectedCategory: 'all',
             activeDayIndex: getTodayIndexMondayBased(),
@@ -1047,6 +1061,7 @@
             state.customCategories = Array.isArray(p.customCategories) ? p.customCategories : [];
             const chars = Array.isArray(p.characters) ? p.characters.filter(id => id === 'meigen' || (typeof CHARACTERS !== 'undefined' && CHARACTERS[id])) : [];
             state.characters = chars.length ? chars : null;
+            state.tune = (p.tune && typeof p.tune === 'object') ? sanitizeTune(p.tune) : null;
             rebuildCategories();
         }
 
@@ -1070,7 +1085,8 @@
                 perfect: state.perfect,
                 badges: state.badges,
                 customCategories: state.customCategories,
-                characters: state.characters
+                characters: state.characters,
+                tune: state.tune
             };
         }
 
@@ -2721,6 +2737,47 @@
                 }
             }
         };
+        const CARE_LINES = {
+            okan: ['でも、無理はしなくていいのよ', '怒ってるんじゃないの、心配なだけ', 'ひとつできたら、それで十分よ'],
+            obachan: ['まぁ無理せんでええけどな', 'しんどいなら休みや、飴ちゃんあげるさかい', 'ひとつだけでええんやで'],
+            coach: ['ただし無理はするな！ 休むのも練習だ', '1つでいい、そこから始めよう', 'お前ならできる、信じてるぞ'],
+            caster: ['無理のないペースでいきましょう', 'ひとつ決めれば流れが変わります！', '応援してますよ！'],
+            butler: ['ご無理はなさいませんよう', '一つで十分でございます', 'お待ち申し上げております'],
+            prince: ['無理はしなくていいからね', '僕はいつでも味方だよ', '君のペースでいいんだ'],
+            onee: ['無理しなくていいのよ', 'できる範囲でいいの', '応援してるわ'],
+            master: ['無理は禁物じゃぞ', '小さな一歩で十分じゃ', '焦らずともよい'],
+            dog: ['むりしないでね！', 'いっしょにいるよ！', 'ひとつでいいよ！']
+        };
+        Object.keys(CARE_LINES).forEach(id => { CHARACTERS[id].care = CARE_LINES[id]; });
+
+        // ---- Personality knobs (0-4, default 2) ----
+        const DEFAULT_TUNE = { scold: 2, kind: 2, praise: 2, energy: 2 };
+        const TUNE_DEFS = [
+            { key: 'scold', title: '喝', left: 'なし', right: '鬼', labels: ['なし', '控えめ', 'ふつう', '強め', '鬼'], hint: '何もチェックしていないときの声かけの早さ・しつこさ' },
+            { key: 'kind', title: '優しさ', left: '辛口', right: 'とことん', labels: ['辛口', 'ややドライ', 'ふつう', '優しめ', 'とことん優しい'], hint: '喝のあとに添えるフォローの多さ' },
+            { key: 'praise', title: '褒め度合い', left: '控えめ', right: 'ベタ褒め', labels: ['控えめ', '少なめ', 'ふつう', '多め', 'ベタ褒め'], hint: 'チェックしたときに褒める頻度・量' },
+            { key: 'energy', title: 'テンション', left: '静か', right: '爆上げ', labels: ['静か', '落ち着き', 'ふつう', '高め', '爆上げ'], hint: '口調の勢い（！の数や絵文字）' }
+        ];
+        function sanitizeTune(t) {
+            const out = { ...DEFAULT_TUNE };
+            Object.keys(DEFAULT_TUNE).forEach(k => {
+                const n = Math.round(Number(t && t[k]));
+                if (Number.isFinite(n)) out[k] = Math.max(0, Math.min(4, n));
+            });
+            return out;
+        }
+        let tuneOverride = null;
+        function tune() { return tuneOverride || state.tune || DEFAULT_TUNE; }
+        function applyEnergy(text, lv) {
+            const EMO = ['✨', '🎉', '💪', '🔥', '😊'];
+            const emo = () => EMO[Math.floor(Math.random() * EMO.length)];
+            if (lv <= 0) return text.replace(/[？?][！!]+/g, '？').replace(/[！!]+/g, '。').replace(/。{2,}/g, '。').replace(/。([」）)])/g, '$1');
+            if (lv === 1) return text.replace(/！{2,}/g, '！').replace(/([^\n])！(?=\n|$)/g, '$1。');
+            if (lv === 3) return /[\u{1F300}-\u{1FAFF}\u2728]/u.test(text) ? text : text + ' ' + emo();
+            if (lv >= 4) return text.replace(/！+/g, '！！').replace(/。(?=\n|$)/g, '！！') + ' ' + emo() + emo();
+            return text;
+        }
+
         const MEIGEN = { id: 'meigen', name: '偉人の名言', emoji: '📜', tagline: '名言・ことわざ・一言' };
 
         function allSources() { return [...Object.values(CHARACTERS), MEIGEN]; }
@@ -2757,7 +2814,16 @@
             }
             const c = CHARACTERS[id];
             const lines = c.lines[kind];
-            return { id, kind, avatar: c.emoji, name: c.name, text: fillVars(lines[pickIndex(id + ':' + kind, lines.length)], vars), tone: c.tone };
+            const T = tune();
+            let text = fillVars(lines[pickIndex(id + ':' + kind, lines.length)], vars);
+            if (kind === 'check' && lines.length > 1 && Math.random() < [0, 0, 0, 0.5, 1][T.praise]) {
+                text += '\n' + fillVars(lines[pickIndex(id + ':' + kind, lines.length)], vars);   // double praise
+            }
+            if (kind === 'nudge' && c.care && Math.random() < [0, 0.25, 0.5, 0.8, 1][T.kind]) {
+                text += '\n' + c.care[pickIndex(id + ':care', c.care.length)];
+            }
+            text = applyEnergy(text, T.energy);
+            return { id, kind, avatar: c.emoji, name: c.name, text, tone: c.tone, big: T.energy >= 4 };
         }
 
         function charFigure(p) {
@@ -2799,7 +2865,7 @@
                     <div onclick="hideMotivation()" class="pointer-events-auto cursor-pointer relative min-w-0 flex-1 mb-24 sm:mb-28 mr-14 sm:mr-0 rounded-2xl border-2 ${bubble} shadow-lg shadow-slate-900/15 px-3.5 py-2.5">
                         <span class="absolute -left-[7px] bottom-5 w-3 h-3 rotate-45 border-l-2 border-b-2 ${tail}"></span>
                         <div class="text-[11px] font-semibold ${nudge ? 'text-amber-700 dark:text-amber-300' : 'text-indigo-600 dark:text-indigo-300'}">${nudge ? '📣 ' : ''}${escapeHTML(p.name)}</div>
-                        <div class="text-sm font-bold leading-snug">${escapeHTML(p.text)}</div>
+                        <div class="${p.big ? 'text-base' : 'text-sm'} font-bold leading-snug whitespace-pre-line">${escapeHTML(p.text)}</div>
                     </div>
                 </div>`;
             lastPopup = { kind: p.kind, id: p.id, text: p.text };
@@ -2818,9 +2884,14 @@
         }
 
         // kind: check | perfect | levelup | streak | open | nudge | partial | done
-        function showMotivation(kind = 'check', vars = {}) {
-            if (!isMotivationOn()) return false;
-            const sel = state.characters && state.characters.length ? state.characters : ['meigen'];
+        function showMotivation(kind = 'check', vars = {}, opts = {}) {
+            if (!opts.force && !isMotivationOn()) return false;
+            const T = tune();
+            if (!opts.force) {
+                if (kind === 'nudge' && T.scold === 0) return false;
+                if (kind === 'check' && Math.random() > [0.25, 0.5, 1, 1, 1][T.praise]) return false;
+            }
+            const sel = opts.chars || (state.characters && state.characters.length ? state.characters : ['meigen']);
             const FALLBACK = { levelup: 'check', perfect: 'check', streak: 'check' };
             const poolFor = k => sel.filter(id => id === 'meigen'
                 ? k === 'check'
@@ -2856,7 +2927,7 @@
             const total = state.habits.length;
             const done = todayDoneCount();
             if (done === 0) {
-                showMotivation(new Date().getHours() >= 15 ? 'nudge' : 'open');
+                showMotivation(new Date().getHours() >= [99, 18, 15, 10, 0][tune().scold] ? 'nudge' : 'open');
                 scheduleIdleNudge();
             } else if (done < total) {
                 showMotivation('partial', { left: total - done });
@@ -2865,25 +2936,71 @@
             }
         }
         // Opened but still nothing checked after a while -> a nudge in character
-        function scheduleIdleNudge() {
+        function scheduleIdleNudge(n = 0) {
             clearTimeout(idleTimer);
+            const sc = tune().scold;
+            const delay = [0, 0, 120000, 90000, 60000][sc];
+            if (!delay || n >= (sc >= 4 ? 3 : 1)) return;
             idleTimer = setTimeout(() => {
                 if (document.visibilityState !== 'visible' || !isMotivationOn() || state.characters === null) return;
-                if (state.habits.length > 0 && todayDoneCount() === 0) showMotivation('nudge');
-            }, 120000);
+                if (state.habits.length > 0 && todayDoneCount() === 0) {
+                    showMotivation('nudge');
+                    scheduleIdleNudge(n + 1);
+                }
+            }, delay);
         }
 
         // ---- Character picker ----
         let pickerSel = new Set();
+        let pickerTune = { ...DEFAULT_TUNE };
+        function renderTune() {
+            const el = document.getElementById('tune-panel');
+            if (!el) return;
+            el.innerHTML = TUNE_DEFS.map(d => `
+                <div>
+                    <div class="flex items-baseline justify-between gap-2">
+                        <label for="tune-${d.key}" class="text-xs font-bold">${d.title}</label>
+                        <span id="tune-label-${d.key}" class="text-xs font-semibold text-indigo-600 dark:text-indigo-300">${d.labels[pickerTune[d.key]]}</span>
+                    </div>
+                    <input id="tune-${d.key}" type="range" min="0" max="4" step="1" value="${pickerTune[d.key]}" oninput="setTune('${d.key}', this.value)" class="w-full mt-1 accent-indigo-600">
+                    <div class="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 -mt-0.5"><span>${d.left}</span><span>${d.right}</span></div>
+                    <div class="text-[10px] text-slate-400 dark:text-slate-500">${d.hint}</div>
+                </div>`).join('');
+        }
+        function setTune(key, v) {
+            pickerTune[key] = Math.max(0, Math.min(4, Math.round(Number(v))));
+            const def = TUNE_DEFS.find(d => d.key === key);
+            const lab = document.getElementById('tune-label-' + key);
+            if (lab && def) lab.textContent = def.labels[pickerTune[key]];
+        }
+        function resetTune() {
+            pickerTune = { ...DEFAULT_TUNE };
+            tuneOverride = pickerTune;
+            renderTune();
+        }
+        function previewTune(kind) {
+            let chars = [...pickerSel].filter(id => CHARACTERS[id]);
+            if (!chars.length) chars = Object.keys(CHARACTERS);
+            if (kind === 'nudge' && pickerTune.scold === 0) {
+                showToast('喝が「なし」なので、声かけだけになります');
+                showMotivation('open', {}, { force: true, chars });
+                return;
+            }
+            showMotivation(kind, {}, { force: true, chars });
+        }
         function openCharacterModal() {
             pickerSel = new Set(state.characters || []);
+            pickerTune = { ...(state.tune || DEFAULT_TUNE) };
+            tuneOverride = pickerTune;
             renderCharacterPicker();
+            renderTune();
             const m = document.getElementById('character-modal');
             m.classList.remove('hidden');
             m.classList.add('flex');
             lucide.createIcons();
         }
         function hideCharacterModal() {
+            tuneOverride = null;
             const m = document.getElementById('character-modal');
             m.classList.add('hidden');
             m.classList.remove('flex');
@@ -2931,6 +3048,7 @@
                 return;
             }
             state.characters = allSources().map(c => c.id).filter(id => pickerSel.has(id));
+            state.tune = sanitizeTune(pickerTune);
             try { localStorage.setItem(MOTIVATION_KEY, '1'); } catch (e) {}
             saveState();
             hideCharacterModal();
